@@ -1,0 +1,6 @@
+tasks
+DONE 1. dwg to dxf 
+2. dxf to jpeg/png 
+3. mark regions of texts in the image (optional)
+DONE 4. extract texts from simple images DONE 
+5. run tests on the given dwg file 
