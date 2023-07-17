@@ -2,3 +2,12 @@ Project Map
 ![image](./static/project_map.png)
 TODO
 actuators redundant excecution of multiple scripts >> refactor or create a entity class
+
+
+WORKING FEATURES
+
+Object Constrution >> init function 
+    
+some parameters may refer to same attributes but 
+in different formats or datatypes, it takes some 
+processing and/or calculation 

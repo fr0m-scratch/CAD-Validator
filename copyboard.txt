@@ -2,70 +2,11 @@
 
 
 
-AddRef <bound method AddRef of <COMObject <unknown>>>
-AppendInnerLoop <bound method AppendInnerLoop of <COMObject <unknown>>>
-AppendOuterLoop <bound method AppendOuterLoop of <COMObject <unknown>>>                                                                                                                                                         
-Application <COMObject <unknown>>                                                                                                                                                                                               
-Area 0.951703174479815                                                                                                                                                                                                          
-ArrayPolar <bound method ArrayPolar of <COMObject <unknown>>>
-ArrayRectangular <bound method ArrayRectangular of <COMObject <unknown>>>                                                                                                                                                       
-AssociativeHatch True                                                                                                                                                                                                           
-Copy <bound method Copy of <COMObject <unknown>>>                                                                                                                                                                               
-Database <COMObject <unknown>>                                                                                                                                                                                                  
-Delete <bound method Delete of <COMObject <unknown>>>                                                                                                                                                                           
-Document <COMObject <unknown>>
-Elevation 0.0                                                                                                                                                                                                                   
-EntityName AcDbHatch                                                                                                                                                                                                            
-EntityType 17                                                                                                                                                                                                                   
-Erase <bound method Erase of <COMObject <unknown>>>                                                                                                                                                                             
-Evaluate <bound method Evaluate of <COMObject <unknown>>>                                                                                                                                                                       
-GetBoundingBox <bound method GetBoundingBox of <COMObject <unknown>>>                                                                                                                                                           
-GetExtensionDictionary <bound method GetExtensionDictionary of <COMObject <unknown>>>
-GetIDsOfNames <bound method GetIDsOfNames of <COMObject <unknown>>>                                                                                                                                                             
-GetLoopAt <bound method GetLoopAt of <COMObject <unknown>>>                                                                                                                                                                     
-GetTypeInfo <bound method GetTypeInfo of <COMObject <unknown>>>                                                                                                                                                                 
-GetTypeInfoCount <bound method GetTypeInfoCount of <COMObject <unknown>>>                                                                                                                                                       
-GetXData <bound method GetXData of <COMObject <unknown>>>                                                                                                                                                                       
-GradientAngle 0.0
-GradientCentered True                                                                                                                                                                                                           
-GradientColor1                                                                                                                                                                                                                  
-GradientColor2                                                                                                                                                                                                                  
-GradientName                                                                                                                                                                                                                    
-Handle 5D3F9B                                                                                                                                                                                                                   
-HasExtensionDictionary False
-HatchObjectType 0                                                                                                                                                                                                               
-HatchStyle 0                                                                                                                                                                                                                    
-Highlight <bound method Highlight of <COMObject <unknown>>>                                                                                                                                                                     
-Hyperlinks <COMObject <unknown>>                                                                                                                                                                                                
-ISOPenWidth 100                                                                                                                                                                                                                 
-InsertLoopAt <bound method InsertLoopAt of <COMObject <unknown>>>
-IntersectWith <bound method IntersectWith of <COMObject <unknown>>>                                                                                                                                                             
-Invoke <bound method Invoke of <COMObject <unknown>>>                                                                                                                                                                           
-Layer 0                                                                                                                                                                                                                         
-Linetype ByLayer                                                                                                                                                                                                                
-LinetypeScale 1.0                                                                                                                                                                                                               
-Lineweight -1
-Material ByLayer                                                                                                                                                                                                                
-Mirror <bound method Mirror of <COMObject <unknown>>>                                                                                                                                                                           
-Mirror3D <bound method Mirror3D of <COMObject <unknown>>>                                                                                                                                                                       
-Move <bound method Move of <COMObject <unknown>>>                                                                                                                                                                               
-Normal (0.0, 0.0, 1.0)
-NumberOfLoops 1                                                                                                                                                                                                                 
-ObjectID 140686880006576                                                                                                                                                                                                        
-ObjectID32 42                                                                                                                                                                                                                   
-ObjectName AcDbHatch                                                                                                                                                                                                            
-Origin (0.0, 0.0)                                                                                                                                                                                                               
-OwnerID 140686879910384                                                                                                                                                                                                         
-OwnerID32 43                                                                                                                                                                                                                    
-PatternAngle 0.0
-PatternDouble False                                                                                                                                                                                                             
-PatternName SOLID                                                                                                                                                                                                               
-PatternScale 1.0                                                                                                                                                                                                                
-PatternSpace 1.0                                                                                                                                                                                                                
-PatternType 1                                                                                                                                                                                                                   
-PlotStyleName ByLayer
-QueryInterface <bound method QueryInterface of <COMObject <unknown>>>                                                                                                                                                           
-                                                                                                                                                                                                                
+['ObjectName', 'InsertionPoint', 'coordinates', 'Area', 'Length', 
+'TextString', 'Handle', 'height', 'Layer', 'TagString', 'color']
+
+
+
 
 {'AcDbArc', 'AcDbAttributeDefinition', 'AcDbCircle', 'AcDbHatch', 'AcDbMText',
  'AcDbPolyline', 'AcDbZombieEntity', 'AcDbBlockReference', 'AcDbText', 'AcDbLine'}

@@ -13,15 +13,32 @@ def generate_graph_rectangles(datapoints, width, height, w_correction, h_correct
     rectangles = [((r1[0][0]-width+w_correction, r1[0][0]+w_correction, r1[0][1]+h_correction, r1[0][1]+height+h_correction), r1[1]) for r1 in datapoints]
     return rectangles
 
+def find_vital_coordinates(entity_list):
+        vital_coordinates = []
+        for entity in entity_list:
+            if entity.type == "AcDbAttributeDefinition" and entity.tag.startswith("H"):
+                vital_coordinates.append((entity.pos, entity.tag))
+        return vital_coordinates
+    
 def set_graph_id(coordinates, rectangles):
-        for i in range(len(rectangles)):
-            x1, x2, y1, y2 = rectangles[i][0]
-            graph_id = rectangles[i][1]
-            x, y = coordinates[0], coordinates[1]
-            if x1 <= x <= x2 and y1 <= y <= y2:
-                return i, graph_id
-        return None, None
+    for i in range(len(rectangles)):
+        x1, x2, y1, y2 = rectangles[i][0]
+        graph_id = rectangles[i][1]
+        x, y = coordinates[0], coordinates[1]
+        if x1 <= x <= x2 and y1 <= y <= y2:
+            return i, graph_id
+    return None, None
 
+def find_graph_id(coordinates, rectangles):
+    for i in range(len(rectangles)):
+        x1, x2, y1, y2 = rectangles[i][0]
+        graph_id = rectangles[i][1]
+        x, y = coordinates[0], coordinates[1]
+        if x1 <= x <= x2 and y1 <= y <= y2:
+            return graph_id, rectangles[i]
+    return None, None
+
+    
 
 def dwg_to_dxf(file_path):
     doc_path = file_path.replace("dwg", "dxf")
@@ -113,21 +130,6 @@ def dwg_to_pdf(filepath):
     imagepath = filepath.replace(".dwg", ".pdf")
     # Save as PDF
     image.save(imagepath, pdfOptions)
-    
-
-
-
-def find_all_rectangle(file_path):
-    """input file_path is a dxf file, return coordinates of all rectangles in the file"""
-    doc = ezdxf.readfile(file_path)
-    msp = doc.modelspace()
-    all_rectangles = []
-    for entity in msp:
-        if entity.dxftype() == "POLYLINE":
-            if entity.is_closed:
-                all_rectangles.append(entity)
-    return all_rectangles
-
 
     
 def create_regions(coordinates, up, down, left, right):
@@ -143,6 +145,18 @@ def get_center(coordinates):
         x, y = (coordinates[0][0]+coordinates[1][0]) /2 , (coordinates[0][1]+ coordinates[1][1]) /2
         return (x, y)
     
+def generate_diagram_numbers(rectangles, tags):
+    regions_with_diagrams = []
+    for tag in tags:
+        coordinates, tag = tag
+        prefix, region = find_graph_id(coordinates, rectangles)
+        if prefix[9] == "1":
+            diagram_number = "FD-" + tag
+        elif prefix[9] == "2":
+            diagram_number = "SAMA-" + tag
+        regions_with_diagrams.append((region[0], diagram_number))
+    return regions_with_diagrams
+            
 def check_within(coordinates, rectangles, indice = None ):
     if indice == None:
         indice = [i for i in range(len(rectangles))]
@@ -156,4 +170,28 @@ def check_within(coordinates, rectangles, indice = None ):
             except:
                 return indice, coordinates
     return None
+
+def parameter_retriving(entity):
+    """entity is a dxf entity, parameters is a list of parameters to be retrived"""
+    relevant_attributes = ['ObjectName', 'InsertionPoint', 'coordinates', 'Area', 'Length', 'TextString', 'Handle', 'height', 'Layer', 'TagString', 'color']
+    relevant_member_function = ['Coordinate', 'GetBoundingBox']
+    res_dict = {}
+    for function in relevant_member_function:
+        try: 
+            res = getattr(entity, function)()
+            res_dict[function] = res
+        except:
+            res_dict[function] = None
+    for attribute in relevant_attributes:
+        try:
+            attr = getattr(entity, attribute)
+            res_dict[attribute] = attr
+        except:
+            res_dict[attribute] = None
+    if res_dict['coordinates'] is not None:
+        coordinates = []
+        for i in range(len(res_dict['coordinates'])//2):
+            coordinates.append(entity.Coordinate(i))
+        res_dict['coordinates'] = coordinates
+    return res_dict
 

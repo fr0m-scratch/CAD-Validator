@@ -26,66 +26,9 @@ with Progress() as progress:
     dataframe_map = {}
     
     
+    
     def read_entity(entity, map):
-        match entity.ObjectName:
-            case 'AcDbText':
-                num, graph_id = set_graph_id(tuple(entity.InsertionPoint), rectangles)
-                map[entity.Handle] = [entity.ObjectName, entity.TextString, tuple(entity.InsertionPoint), num, graph_id, entity.Layer]
-                # print(entity.TextString, file=output, end=' :')
-                # print(getattr(entity, "InsertionPoint",None), entity.Layer, file=output)      
-            case 'AcDbMText':
-                if entity.color == 4:
-                    coordinates = tuple(entity.InsertionPoint[0:2])
-                    check = check_within(coordinates, regions)
-                    if check:
-                        actuators.append((check[0], entity.TextString, check[1]))
-                arrow_check = check_within(tuple(entity.InsertionPoint[0:2]), arrow_regions, [1,1,2])
-                if arrow_check and entity.TextString.isalpha() and entity.height == 2:
-                    actuators.append((arrow_check[0], entity.TextString, arrow_check[1]))
-                varrow_check = check_within(tuple(entity.InsertionPoint[0:2]), varrow_regions, [3,4])
-                if varrow_check:
-                    actuators.append((varrow_check[0], entity.TextString, varrow_check[1]))
-                num, graph_id = set_graph_id(tuple(entity.InsertionPoint), rectangles)
-                map[entity.Handle] = [entity.ObjectName, entity.TextString, tuple(entity.InsertionPoint), num, graph_id, entity.Layer]
-                # print(entity.TextString, file=output, end=' :')
-                # print(getattr(entity, "InsertionPoint",None), entity.Layer, file=output)      
-            case 'AcDbBlockReference':
-                num, graph_id = set_graph_id(tuple(entity.InsertionPoint), rectangles)
-                map[entity.Handle] = [entity.ObjectName, "################", tuple(entity.InsertionPoint), num, graph_id, entity.Layer]
-                if not entity.HasAttributes:
-                    return
-                for attrib in entity.GetAttributes():
-                    if attrib.TextString != "":
-                        num, graph_id = set_graph_id(tuple(entity.InsertionPoint), rectangles)
-                        # if attrib.TagString == "INSDGN":
-                        #     print(attrib.TextString)
-                        #     print(type(attrib.TextString))
-                        #     print(len(attrib.TextString))
-                        #     print(attrib.TextString.strip()== "")
-                        map[attrib.Handle] = [attrib.ObjectName, f'{attrib.TagString}: {attrib.TextString}', tuple(attrib.InsertionPoint), num, graph_id, attrib.Layer]
-                        # print(f'{attrib.TagString}: {attrib.TextString}', file=output, end=' :')
-                        # print(getattr(entity, "InsertionPoint",None), entity.Layer, file=output)      
-            case "AcDbAttributeDefinition":
-                num, graph_id = set_graph_id(tuple(entity.InsertionPoint), rectangles)
-                map[entity.Handle] = [entity.ObjectName, f'{entity.TagString}: {entity.TextString}', tuple(entity.InsertionPoint), num, graph_id, entity.Layer]
-                # print(f'{entity.TagString}: {entity.TextString}', file=output, end=' :')
-                # print(getattr(entity, "InsertionPoint",None), entity.Layer, file=output)  
-            case "AcDbHatch":
-                if 1.29<entity.Area <1.3:
-                    coordinates = get_center(tuple(entity.GetBoundingBox())[0:2])
-                    check = check_within(coordinates, regions)
-                    if check:
-                       arrows.append(check) 
-            case "AcDbPolyline":
-                # print(dir(entity))                                                          
-                if 3.8<entity.Length< 5:                                
-                    coordinates = []
-                    for i in range(len(entity.coordinates)//2):
-                        coordinates.append(entity.Coordinate(i))
-                    coordinates = get_center(coordinates)
-                    check = check_within(coordinates, regions)
-                    if check:
-                        varrows.append(check)
+        print(parameter_retriving(entity))
     
     def find_vital_coordinates(doc):
         vital_coordinates = []
@@ -100,14 +43,7 @@ with Progress() as progress:
         return vital_coordinates
     
     datapoints = find_vital_coordinates(doc)
-
-    
-        
-    
     rectangles = generate_graph_rectangles(datapoints, 420, 297, 45.3, -12.6)
-
-    
-    
     regions = [(14615.73452103801, 14655.73452103801, -1838.7400860374682, -1798.7400860374682), (14864.348194660093, 14904.348194660093, -1839.5206256509964, -1799.5206256509964), (15311.344909970081, 15351.344909970081, -1859.8555252168007, -1819.8555252168007), (15618.395970117243, 15658.395970117243, -3327.9702875672237, -3287.9702875672237), (16111.925881510117, 16151.925881510117, -3326.1271811475744, -3286.1271811475744)]
     
     def add_entry(entity, map):
@@ -173,10 +109,8 @@ with Progress() as progress:
                 
 
     for entity in acad.ActiveDocument.ModelSpace:
-        
+        read_entity(entity, dataframe_map)
         add_entry(entity, dataframe_map)
-        # if entity.ObjectName == "AcDbZombieEntity":
-        #     print(entity.GetBoundingBox())
         progress.update(add_en, advance=1)
         
     df = pd.DataFrame.from_dict(dataframe_map, 
