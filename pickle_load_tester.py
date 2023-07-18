@@ -5,8 +5,9 @@ from cad_entity import CADEntity
 from cad_handler import CADHandler
 import re
 
-acad = CADHandler()
+acad = CADHandler("entity_list.pkl")
 acad.set_params()
-a,b,c = acad.identify_accessories()
-
-acad.export_accessories_to_excel(a,b,c,"accessories.xlsx")
+at,b,c = acad.identify_accessories()
+illustration = acad.retrive_designation()
+acad.trim_designation
+acad.export_accessories_to_excel(at,b,c,"accessories.xlsx",)

@@ -11,3 +11,6 @@ Object Constrution >> init function
 some parameters may refer to same attributes but 
 in different formats or datatypes, it takes some 
 processing and/or calculation 
+
+
+relevance has to be changed to list or similar data structures
