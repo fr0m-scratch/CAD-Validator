@@ -1,12 +1,12 @@
 from typing import Any
 from cad_entity import CADEntity
 import win32com.client
-from utility import *
+from utility.utility import *  
 import pickle
 from rich.progress import Progress
 import re
 import pandas as pd
-from accessories import accessories
+from utility.accessories import accessories
 class CADHandler:
     def __init__(self, filepath= None):
         self.acad = None
@@ -81,9 +81,9 @@ class CADHandler:
         for tag in tags:
             coordinates, tag = tag
             prefix, region = find_graph_id(coordinates, rectangles)
-            if prefix[9] == "1":
+            if prefix[8:11] == "016":
                 diagram_number = "FD-" + tag
-            elif prefix[9] == "2":
+            elif prefix[8:11] == "026":
                 diagram_number = "SAMA-" + tag
             regions_with_diagrams.append((region[0], diagram_number))
         return regions_with_diagrams
@@ -252,35 +252,50 @@ class CADHandler:
                                                "Relevance", "Position", "Sorting Position"])
         
         df.to_excel(filepath)
-        
+    def accessories_to_df(self, sensors, special_ios, actuators):
+        def extract_text_sort(accessories):
+            accessories.sort(key = lambda x: x.relevance and x.relevance.text[4:] or x.text[4:])
+        extract_text_sort(special_ios)
+        extract_text_sort(actuators)
+        sensors_dict = []
+        special_ios_dict = []
+        actuators_dict = []
+        for sensor in sensors:
+            sensors_dict.append(sensor.to_dict())
+        for special_io in special_ios:
+            special_ios_dict.append(special_io.to_dict())
+        for actuator in actuators:
+            actuators_dict.append(actuator.to_dict())
+        df1 = pd.DataFrame.from_dict(sensors_dict)
+        df2 = pd.DataFrame.from_dict(special_ios_dict)
+        df3 = pd.DataFrame.from_dict(actuators_dict)
+        for df in (df1, df2, df3):
+            df.insert(0, "序号serial number", df.index+1)
+        return (df1, df2, df3)
+    #need to be modifies to only take copiess
     def export_accessories_to_excel(self, sensors, special_ios, actuators, filepath):
         def extract_text_sort(accessories):
             accessories.sort(key = lambda x: x.diagram_number)
             for asso in accessories:
                 asso.designation = [x.text for x in asso.trim_designation()]
                 asso.designation.sort(key=lambda x: x, reverse = True)
-            asso.designation.sort(reverse = True)
         extract_text_sort(sensors)
         extract_text_sort(special_ios)
         extract_text_sort(actuators)
-        sensors_dict = {}
-        special_ios_dict = {}
-        actuators_dict = {}
+        sensors_dict = []
+        special_ios_dict = []
+        actuators_dict = []
         for sensor in sensors:
-            sensors_dict[sensor.handle] = sensor.accessorie_to_entry()
+            sensors_dict.append(sensor.to_dict())
         for special_io in special_ios:
-            special_ios_dict[special_io.handle] = special_io.accessorie_to_entry()
+            special_ios_dict.append(special_io.to_dict())
         for actuator in actuators:
-            actuators_dict[actuator.handle] = actuator.actuators_to_entry()
-        df1 = pd.DataFrame.from_dict(sensors_dict, 
-                                    orient = "index",
-                                    columns = ["id_codes", "Diagram Number", "designation", "rev."])
-        df2 = pd.DataFrame.from_dict(special_ios_dict,
-                                     orient = "index",
-                                     columns= ["id_codes", "Diagram Number", "designation", "rev."])
-        df3 = pd.DataFrame.from_dict(actuators_dict,
-                                     orient = "index",
-                                     columns = ["id_codes", "ex_codes", "Diagram Number", "designation", "rev."])
+            actuators_dict.append(actuator.to_dict())
+        df1 = pd.DataFrame.from_dict(sensors_dict)
+        df2 = pd.DataFrame.from_dict(special_ios_dict)
+        df3 = pd.DataFrame.from_dict(actuators_dict)
+        for df in (df1, df2, df3):
+            df.insert(0, "序号serial number", df.index+1)
         output = open(filepath, "w")
         writer = pd.ExcelWriter(filepath, engine='xlsxwriter')
         df1.to_excel(writer, sheet_name='SENSOR_IO', index=False)
@@ -289,7 +304,7 @@ class CADHandler:
         writer.close()
         output.close()
         
-        
+    
     def search_by_handle(self, handle):
         for entity in self.entities:
             if entity.handle == handle:

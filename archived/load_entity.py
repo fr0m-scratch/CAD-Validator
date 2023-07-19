@@ -2,7 +2,7 @@ from cad_entity import CADEntity
 from pyautocad import Autocad
 import pandas as pd
 import win32com.client
-from utility import *
+from utility.utility import *
 import pickle
 from rich.progress import Progress
 

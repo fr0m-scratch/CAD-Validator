@@ -1,4 +1,4 @@
-
+import re
 class CADEntity:
     class handle:
         def __init__(self, handle, entity):
@@ -82,7 +82,25 @@ class CADEntity:
             self.designation.sort(key=lambda x: self.get_distance(x))
         return self.designation
     
+    # def to_dict(self):
+    #     return {'Handle': self.handle, 'InsertionPoint': self.pos, 'Layer': self.layer, 'ObjectName': self.type, 'Area': self.area, 'Length': self.length, 'height': self.height, 'TextString': self.text, 'TagString': self.tag, 'color': self.color, 'GetBoundingBox': self.bounding_box, 'coordinates': self.coordinates}
+    def designation_to_string(self):
+        if self.designation is None:
+            return '-'
+        des_list = self.trim_designation()
+        chinese = [x.text for x in des_list if re.search('[\u4e00-\u9fff]', x.text)]
+        english = [x.text for x in des_list if not re.search('[\u4e00-\u9fff]', x.text)]
+        chinese.sort(key=lambda x: len(x), reverse=True)
+        english.sort()
+        return ''.join(chinese) +'\n' + ''.join(english)
+        
+        
     def to_dict(self):
-        return {'Handle': self.handle, 'InsertionPoint': self.pos, 'Layer': self.layer, 'ObjectName': self.type, 'Area': self.area, 'Length': self.length, 'height': self.height, 'TextString': self.text, 'TagString': self.tag, 'color': self.color, 'GetBoundingBox': self.bounding_box, 'coordinates': self.coordinates}
-    
+        return {'信号位号idcode': (self.relevance and self.relevance.text) or self.text, 
+                '扩展码extensioncode': (self.relevance and self.text) or '-',
+                "信号说明designation": self.designation_to_string(),
+                "图号diagram number": self.diagram_number,
+                "版本rev.": self.rev,
+                "备注remark": "-",
+                }
     

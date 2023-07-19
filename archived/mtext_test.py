@@ -1,6 +1,6 @@
 import ezdxf
 from ezdxf.addons import odafc
-from utility import *
+from utility.utility import *
 #import dwg file
 doc_path = dwg_to_dxf("TFS.dwg")
 doc = ezdxf.readfile(doc_path)

@@ -1,12 +1,15 @@
 -i https://pypi.mirrors.ustc.edu.cn/simple
 
+['序号serial number', '信号位号id-code', '扩展码extension code', 
+'信号说明designation', '图号diagram number', '版本rev.', '备注remark']
 
 
-['ObjectName', 'InsertionPoint', 'coordinates', 'Area', 'Length', 
-'TextString', 'Handle', 'height', 'Layer', 'TagString', 'color']
-
-
-
-
-{'AcDbArc', 'AcDbAttributeDefinition', 'AcDbCircle', 'AcDbHatch', 'AcDbMText',
- 'AcDbPolyline', 'AcDbZombieEntity', 'AcDbBlockReference', 'AcDbText', 'AcDbLine'}
+for row in sensors_control.index:
+    for col in range(sensors_control.shape[1]):
+        ws.cell(row+2, col+1).font = Font(color='000000')
+for row in specials_control.index:
+    for col in range(specials_control.shape[1]):
+        spe.cell(row+2, col+1).font = Font(color='000000')
+for row in actuators_control.index:
+    for col in range(actuators_control.shape[1]):
+        act.cell(row+2, col+1).font = Font(color='000000')

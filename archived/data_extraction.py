@@ -1,7 +1,7 @@
 from pyautocad import Autocad
 import pandas as pd
 import win32com.client
-from utility import *
+from utility.utility import *
 import time
 from rich.progress import Progress
 

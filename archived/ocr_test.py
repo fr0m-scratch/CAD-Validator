@@ -1,4 +1,4 @@
-from utility import *
+from utility.utility import *
 from pdf2image import convert_from_path
 import ocrmypdf
 

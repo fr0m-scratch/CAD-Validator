@@ -31,7 +31,7 @@
 #                 if e.type_name == cad.fileformats.cad.cadconsts.CadEntityTypeName.ATTRIB:
 #                     attrib = cast(cad.fileformats.cad.cadobjects.attentities.CadAttrib, e)
 #                     print(attrib.definition_tag_string)
-from utility import *
+from utility.utility import *
 
 from pyautocad import Autocad, APoint
 import win32com 
