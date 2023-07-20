@@ -76,6 +76,8 @@ class CADEntity:
             return self.designation[0]
     
     def trim_designation(self):
+        for designation in self.designation:
+            designation.text = designation.text.replace('\\P', '')
         if len(self.designation) > 3:
             self.designation = [self.get_closest_designation()]
         else:

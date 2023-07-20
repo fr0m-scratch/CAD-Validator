@@ -1,6 +1,8 @@
 import re
 import pandas as pd
 import openpyxl
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font, colors
 def find_graph_id(coordinates, rectangles):
     for i in range(len(rectangles)):
         x1, x2, y1, y2 = rectangles[i][0]
@@ -56,7 +58,7 @@ def unify(df):
     df.sort_values(by=['信号位号idcode', '图号diagram number','扩展码extensioncode'], inplace=True, ignore_index=True)
     return df
 
-def read_diff(extracted, control, ref, designation = True, extension = True):
+def read_diff(extracted, control, ref, extension = True, designation = True):
     """marks diff cells in both dataframes as red"""
     diff = []
     diff_content = {}
@@ -76,5 +78,28 @@ def read_diff(extracted, control, ref, designation = True, extension = True):
                     if control.loc[row, col] == extracted.loc[row, col].replace('\n', ''):
                         continue
                 diff.append((control.loc[row,'序号serial number']+1, ref[col]))
-                diff_content[(row, col)] = (extracted.loc[row, col], control.loc[row, col])
+                if (control.loc[row,'序号serial number']+1) not in diff_content.keys():
+                    diff_content[(control.loc[row,'序号serial number']+1)] = {}
+                diff_content[(control.loc[row,'序号serial number']+1)][col] = extracted.loc[row, col].replace('\n', '')
     return diff, diff_content
+
+def output_diff(filepath, ref, comparing_data):
+    sensors, specials, actuators, sensors_control, specials_control, actuators_control = comparing_data
+    wb = openpyxl.load_workbook(filepath)
+    sensors_writer = wb['SENSOR_IO']
+    specials_writer = wb['SPECIAL_IO']
+    actuators_writer = wb['ACTUATOR_IO']
+    def write_diff(writer, extracted, control, extension = True, designation = True ):
+        pos, content = read_diff(extracted, control, ref, extension, designation)
+        insert_col = writer.max_column + 1
+        writer.insert_cols(insert_col, 1)
+        writer.cell(1, insert_col).value = 'CAD Content'
+        for row, col in pos:
+            writer.cell(row, col).font = Font(color='FF0000')
+        for row in content.keys():
+            writer.cell(row, insert_col).value = str(content[row])
+        return
+    write_diff(sensors_writer, sensors, sensors_control, extension = False)
+    write_diff(specials_writer, specials, specials_control, extension = False)
+    write_diff(actuators_writer, actuators, actuators_control)
+    wb.save(filepath)
