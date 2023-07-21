@@ -7,6 +7,7 @@ from rich.progress import Progress
 import re
 import pandas as pd
 from utility.accessories import accessories
+
 class CADHandler:
     def __init__(self, filepath= None):
         self.acad = None
@@ -14,22 +15,29 @@ class CADHandler:
         self.modelspace = None
         self.entities = []
         self.accessories = {}
+        #CAD Handler有两种初始化方式，一种是从CAD中读取，一种是从pkl（类JSON）文件中读取
         if filepath is None:
             self.inspect_CAD()
             self.load_entities()
         else:
             self.load_entities_from_file(filepath)
+        self.set_params()
             
     def set_pos(self):
         for entity in self.entities:
             entity.set_pos()
     
     def set_params(self):
+        #初始化CAD实体的各个参数 
         self.set_pos()
         self.set_diagram_number()
         self.set_sorting_pos()
+        self.set_rev_safty()
+        self.identify_accessories()
+        self.retrive_designation()
         
     def inspect_CAD(self):
+        #利用win32com.client模块连接CAD
         self.acad = win32com.client.Dispatch("AutoCAD.Application")
         self.doc = self.acad.ActiveDocument
         self.modelspace = self.doc.modelspace 
@@ -39,29 +47,37 @@ class CADHandler:
             entity.set_sorting_pos()
     
     def load_entities(self):
+        #从CAD中读取实体信息，存入self.entities
         progress = Progress()
         find = progress.add_task("[cyan2]Loading Entities:", total=3644)
-        progress.start()
+        progress.start()  
         for entity in self.modelspace:
             progress.update(find, advance=1)
+            
             if entity.ObjectName != "AcDbZombieEntity":
+                
                 params = parameter_retriving(entity)
                 cad_entity = CADEntity(params)
                 self.entities.append(cad_entity)
             if entity.ObjectName == "AcDbBlockReference":
+                
                 for attribute in entity.GetAttributes():
                     params = parameter_retriving(attribute)
                     cad1_entity = CADEntity(params)
                     self.entities.append(cad1_entity)
                     cad1_entity.parent = cad_entity
-        with open('entity_list.pkl', 'wb') as f:
+        progress.stop()
+                    
+        with open('./data/entity_list.pkl', 'wb') as f:
             pickle.dump(self.entities, f)
         
     def load_entities_from_file(self, filepath):
+        #从pkl文件中读取实体信息，存入self.entities
         with open(filepath, 'rb') as f:
             self.entities = pickle.load(f)
     
     def find_vital_entities(self):
+        #找到图号相关信息的实体
         vital_coordinates = []
         nums = []
         for entity in self.entities:
@@ -72,8 +88,25 @@ class CADHandler:
                     nums.append(entity)
         return vital_coordinates,nums
     
-    def generate_graph_rectangles(self, anchors, width, height, w_correction, h_correction):
-        rectangles = [((r1[0][0]-width+w_correction, r1[0][0]+w_correction, r1[0][1]+h_correction, r1[0][1]+height+h_correction), r1[1]) for r1 in anchors]
+    def set_diagram_number(self):
+        #与generate_graph_rectangles和generate_diagram_numbers配合，找到图号相关信息的实体
+        anchors, tags = self.find_vital_entities()
+        tags = [(tag.pos, tag.tag) for tag in tags]
+        regions = self.generate_graph_rectangles(anchors,420, 297, 45.3, -12.6)
+        regions_with_diagrams = self.generate_diagram_numbers(regions, tags)
+        for entity in self.entities:
+            for region, diagram_number in regions_with_diagrams:
+                x,y = entity.pos
+                x1, x2, y1, y2 = region
+                if x1<=x<=x2 and y1<=y<=y2:
+                    entity.diagram_number = diagram_number
+                    break
+                
+    def generate_graph_rectangles(self, anchors, width, height, w_correction, h_correction, true_point = False):
+        if true_point:
+            rectangles = [((r1.insertionpoint[0]-width+w_correction, r1.insertionpoint[0]+w_correction, r1.insertionpoint[1]+h_correction, r1.insertionpoint[1]+height+h_correction), r1) for r1 in anchors]
+        else:
+            rectangles = [((r1.pos[0]-width+w_correction, r1.pos[0]+w_correction, r1.pos[1]+h_correction, r1.pos[1]+height+h_correction), r1) for r1 in anchors]
         return rectangles
     
     def generate_diagram_numbers(self, rectangles, tags):
@@ -87,39 +120,31 @@ class CADHandler:
                 diagram_number = "SAMA-" + tag
             regions_with_diagrams.append((region[0], diagram_number))
         return regions_with_diagrams
-                
-    def set_diagram_number(self):
-        anchors, tags = self.find_vital_entities()
-        coordinates = [(anchor.pos, anchor.tag) for anchor in anchors]
-        tags = [(tag.pos, tag.tag) for tag in tags]
-        regions = self.generate_graph_rectangles(coordinates,420, 297, 45.3, -12.6)
-        regions_with_diagrams = self.generate_diagram_numbers(regions, tags)
+            
+    def set_rev_safty(self):
+        #找到并设置版本和安全分级信息
+        anchors, _ = self.find_vital_entities()
+        rev = self.generate_graph_rectangles(anchors, 8,5, -4, -5, True)
+        safe = self.generate_graph_rectangles(anchors, 6,4, -31.5, -5, True)
+        div = self.generate_graph_rectangles(anchors,11,4, -72,-5, True)
+        revs, safes, divs = {}, {}, {}
         for entity in self.entities:
-            for region, diagram_number in regions_with_diagrams:
-                x,y = entity.pos
-                x1, x2, y1, y2 = region
-                if x1<=x<=x2 and y1<=y<=y2:
-                    entity.diagram_number = diagram_number
-                    break
-        #should be modifies into a seperate function--generate and find rev numbers
-        alphas = []
-        for entity in self.entities:
-            if entity.type == "AcDbMText" and len(entity.text) == 1 and entity.text.isalpha():
-                alphas.append(entity)
-        revs = {}
-        for alpha in alphas:
-            if alpha.diagram_number not in revs:
-                revs[alpha.diagram_number] = [alpha]
-            else:
-                revs[alpha.diagram_number].append(alpha)  
-        revs = {anchor.diagram_number:sorted(revs[anchor.diagram_number], key=lambda x: 
-            x.get_distance_by_c(anchor.pos))[0] for anchor in anchors}
+            if entity.type == "AcDbMText":
+                if self.check_within(entity.insertionpoint, rev):
+                    revs[self.check_within(entity.insertionpoint, rev).diagram_number] = entity
+                if self.check_within(entity.insertionpoint, safe):
+                    safes[self.check_within(entity.insertionpoint, safe).diagram_number] = entity
+                if self.check_within(entity.insertionpoint, div):
+                    divs[self.check_within(entity.insertionpoint, div).diagram_number] = entity
         for entity in self.entities:
             if entity.diagram_number is not None:
-                entity.rev = revs[entity.diagram_number].text
+                entity.rev = entity.diagram_number in revs and revs[entity.diagram_number].text or None
+                entity.safety_class = safes[entity.diagram_number].text + '/' + divs[entity.diagram_number].text
 
+        return divs, revs, safes
     
     def identify_accessories(self):
+        #识别sensors, special_ios, actuators，这个函数的逻辑比较复杂，可以进一步refactor
         sensors = []
         special_ios = []
         actuators = []
@@ -127,6 +152,7 @@ class CADHandler:
                       and re.search("INSSYS", entity.tag)], key = lambda x: x.sorting_pos)
         ide = sorted([entity for entity in self.entities if entity.tag and entity.text
                       and re.search("INSIDE", entity.tag)], key = lambda x: x.sorting_pos)
+        
         for sys_entity, ide_entity in zip(sys, ide):
             entity = "YTFS" + ide_entity.text + sys_entity.text
             if sys_entity.text == "SY":
@@ -143,6 +169,7 @@ class CADHandler:
         scattered = [entity for entity in self.entities if entity.text and 
                      re.search("YTFS[^\s][^-]+$", entity.text)]
         unmatched = []
+        
         for entity in scattered:
             if entity.text.endswith("SY"):
                 special_ios.append(entity)
@@ -152,6 +179,7 @@ class CADHandler:
         arrows, varrows = self.get_arrows(unmatched_regions)
         arrow_regions = self.get_target_regions(arrows, 10, 10, 58, 58)
         varrow_regions = self.get_target_regions(varrows, 10,10,10,10)
+        
         for entity in self.entities:
             if entity.type == "AcDbMText":
                 if entity.color == 4:
@@ -182,33 +210,21 @@ class CADHandler:
         return sensors, special_ios, actuators
         
     def get_target_regions(self, entities, up, down, left, right):
+        #根据实体的位置，生成一个矩形区域，用于后续的判断
         res = []
         for entity in entities:
             region = self.generate_rectangle(entity.pos, up, down, left, right)
             res.append((region, entity))
         return res
-    
-    def special_ios_duplicates_processing(self, special_ios):
-        text_dict = {}
-        for spe in special_ios:
-            if spe.text not in text_dict:
-                text_dict[spe.text] = [spe]
-            else:
-                text_dict[spe.text].append(spe)
-        duplicates = [item for item in text_dict.values() if len(item) > 1]
-        
-        for duo in duplicates:
-            duo.sort(key=lambda x: x.sorting_pos, reverse = True)
-            for spe in duo[1:]:
-                special_ios.remove(spe)
-        return special_ios
         
     def generate_rectangle(self, coordinates, up, down, left, right):
+        #根据实体的位置，生成一个矩形区域，用于后续的判断
         x, y = coordinates[0], coordinates[1]
         bounds = (x-left, x+right, y-down, y+up)
         return bounds
       
     def get_arrows(self, regions):
+        #识别箭头
         arrows = []
         varrows = []
         for entity in self.entities:
@@ -230,7 +246,8 @@ class CADHandler:
         return arrows, varrows
     
     def check_within(self, coordinates, rectangles, overload = False):
-        x,y = coordinates
+        #判断一个坐标是否在一个矩形区域内，并返回矩形区域对应的实体
+        x,y = coordinates[0:2]
         res = []
         for rec in rectangles:
             x1, x2, y1, y2 = rec[0]
@@ -242,6 +259,7 @@ class CADHandler:
         return res or None
     
     def export_to_excel(self, filepath):
+        #将实体信息导出到excel文件，还未完成！！！
         dataframe_map = {}
         for entity in self.entities:
             dataframe_map[entity.handle] = entity.entity_to_entry()
@@ -252,11 +270,9 @@ class CADHandler:
                                                "Relevance", "Position", "Sorting Position"])
         
         df.to_excel(filepath)
+        
     def accessories_to_df(self, sensors, special_ios, actuators):
-        def extract_text_sort(accessories):
-            accessories.sort(key = lambda x: x.relevance and x.relevance.text[4:] or x.text[4:])
-        extract_text_sort(special_ios)
-        extract_text_sort(actuators)
+        #将识别出的sensors, special_ios, actuators导出到pandas dataframe以进行后续比对
         sensors_dict = []
         special_ios_dict = []
         actuators_dict = []
@@ -272,8 +288,10 @@ class CADHandler:
         for df in (df1, df2, df3):
             df.insert(0, "序号serial number", df.index+1)
         return (df1, df2, df3)
+    
     #need to be modifies to only take copiess
     def export_accessories_to_excel(self, sensors, special_ios, actuators, filepath):
+        #将识别出的sensors, special_ios, actuators导出到excel文件
         def extract_text_sort(accessories):
             accessories.sort(key = lambda x: x.diagram_number)
             for asso in accessories:
@@ -303,15 +321,32 @@ class CADHandler:
         df2.to_excel(writer, sheet_name='SPECIAL_IO', index=False)
         writer.close()
         output.close()
+    
+    def special_ios_duplicates_processing(self, special_ios):
+        #处理special_ios中的重复项
+        text_dict = {}
+        for spe in special_ios:
+            if spe.text not in text_dict:
+                text_dict[spe.text] = [spe]
+            else:
+                text_dict[spe.text].append(spe)
+        duplicates = [item for item in text_dict.values() if len(item) > 1]
         
+        for duo in duplicates:
+            duo.sort(key=lambda x: x.sorting_pos, reverse = True)
+            for spe in duo[1:]:
+                special_ios.remove(spe)
+        return special_ios
     
     def search_by_handle(self, handle):
+        #根据handle查找实体
         for entity in self.entities:
             if entity.handle == handle:
                 return entity
         return None
     
     def contain(self, words):
+        #根据关键词查找实体
         res = []
         for entity in self.entities:
             if entity.text is not None:
@@ -325,6 +360,7 @@ class CADHandler:
         return res
     
     def not_contain(self, words):
+        #根据关键词查找实体
         res = []
         for entity in self.entities:
             if entity.text is not None:
@@ -337,13 +373,8 @@ class CADHandler:
                     res.append(entity)
         return set(res)
     
-    def get_entity_by_handle(self, handle):
-        for entity in self.entities:
-            if entity.handle == handle:
-                return entity
-        return None
-    
     def retrive_designation(self):
+        #识别每个实体相关的图例列表
         accessories = []
         for items in self.accessories.values():
             accessories.extend(items)
@@ -390,6 +421,7 @@ class CADHandler:
         return illustration
         
     def trim_designation(self):
+        #去除irrelevant的图例
         for entity in self.entities:
             entity.designation = [x for x in entity.trim_designation()]
             entity.designation.sort(key = lambda x: x.text, reverse = True)
