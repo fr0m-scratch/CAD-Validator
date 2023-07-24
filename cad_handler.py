@@ -128,7 +128,7 @@ class CADHandler:
         rev = self.generate_graph_rectangles(anchors, 8,5, -4, -5, True)
         safe = self.generate_graph_rectangles(anchors, 6,4, -31.5, -5, True)
         div = self.generate_graph_rectangles(anchors,11,4, -72,-5, True)
-        ent = self.generate_graph_rectangles(anchors, 20,15 , -92, 10, True )
+        ent = self.generate_graph_rectangles(anchors, 25,15 , -92, 10, True )
         revs, safes, divs, ents = {}, {}, {}, {}
         for entity in self.entities:
             if entity.type == "AcDbMText":

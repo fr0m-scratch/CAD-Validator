@@ -92,12 +92,20 @@ def read_diff(extracted, control, ref, extension = True, designation = True):
                 diff_check = extracted.loc[row, col] != control.loc[row, col]
             if diff_check:
                 if col == '信号说明designation':
-                    if control.loc[row, col] == extracted.loc[row, col].replace('\n', ''):
+                    c_english = control.loc[row,col].split('\n')[-1].replace(' ', '') or "无描述"
+                    e_english = extracted.loc[row,col].split('\n')[-1].replace(' ', '') or "无描述"
+                    c = control.loc[row, col].replace('\n', '').replace(' ', '')
+                    e = extracted.loc[row, col].replace('\n', '').replace(' ', '')
+                    if c == e:
+                        continue
+            
+                    if abbreviation_match(e_english, c_english, 3):
+                        #可以修改模糊匹配的实体，选择输出不同或输出缩写比对
                         continue
                 diff.append((control.loc[row,'序号serial number']+1, ref[col]))
                 if col not in diff_content:
                     diff_content[col] = {}
-                diff_content[col][(control.loc[row,'序号serial number']+1)] = extracted.loc[row, col].replace('\n', '') or '无描述'
+                diff_content[col][(control.loc[row,'序号serial number']+1)] = extracted.loc[row, col] or '无描述'
     return diff, diff_content
 
 def output_diff(filepath, ref, comparing_data):
@@ -170,19 +178,14 @@ def not_contain(words, entities):
                     res.append(entity)
         return set(res)
     
-def unformat_mtext(s, exclude_list=('P', 'S')):
+def unformat_mtext(s, exclude_list=('n', 'S')):
     """Returns string with removed format information
-
     :param s: string with multitext
     :param exclude_list: don't touch tags from this list. Default ('P', 'S') for
                          newline and fractions
-
-    ::
-
-        >>> text = ur'{\\fGOST type A|b0|i0|c204|p34;TEST\\fGOST type A|b0|i0|c0|p34;123}'
-        >>> unformat_mtext(text)
-        u'TEST123'
-
+    >>> text = ur'{\\fGOST type A|b0|i0|c204|p34;TEST\\fGOST type A|b0|i0|c0|p34;123}'
+    >>> unformat_mtext(text)
+    u'TEST123'
     """
     s = re.sub(r'\{?\\[^%s][^;]+;' % ''.join(exclude_list), '', s)
     s = re.sub(r'\}', '', s)
@@ -194,13 +197,39 @@ def mtext_to_string(s):
     """
     Returns string with removed format innformation as :func:`unformat_mtext` and
     `\\P` (paragraphs) replaced with newlines
-
-    ::
-
-        >>> text = ur'{\\fGOST type A|b0|i0|c204|p34;TEST\\fGOST type A|b0|i0|c0|p34;123}\\Ptest321'
-        >>> mtext_to_string(text)
-        u'TEST123\\ntest321'
-
+    >>> text = ur'{\\fGOST type A|b0|i0|c204|p34;TEST\\fGOST type A|b0|i0|c0|p34;123}\\Ptest321'
+    >>> mtext_to_string(text)
+    u'TEST123\\ntest321'
     """
+    return unformat_mtext(s)
 
-    return unformat_mtext(s).replace(u'\\P', u'\n')
+# def abbreviation_match(abr, ori):
+#     if abr == '':
+#         return True
+#     if len(abr) > len(ori):
+#         return False
+#     if len(ori) == 1:
+#         return abr == ori
+#     else:
+#         if abr[0] == ori[0]:
+#             return abbreviation_match(abr[1:], ori[1:])
+#         else:
+#             return abbreviation_match(abr, ori[1:])
+
+def abbreviation_match(abr, ori, threshold = 1000):
+    i,j, count = 0, 0, 0
+    while i < len(abr) and j < len(ori):
+        if abr[i] == ori[j]:
+            i += 1
+            j += 1
+        else:
+            j += 1
+            count += 1
+    count += len(ori) - j
+    if count >= threshold:
+        return False
+    if i == len(abr):
+        return True
+    elif j == len(ori):
+        return False
+            

@@ -11,6 +11,9 @@ install()
 acad = CADHandler(".\data\entity_list.pkl")
 
 
+sensors, specials, actuators = acad.accessories.values()
 
-a,b,c = acad.accessories_to_df(*acad.accessories.values())
+extracted = acad.accessories_to_df(sensors, specials, actuators)
 
+sensors, specials, actuators = extracted
+print(actuators["信号说明designation"])

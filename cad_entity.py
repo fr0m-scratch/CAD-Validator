@@ -68,7 +68,10 @@ class CADEntity:
         for designation in self.designation:
             designation.text = designation.text.replace('\\P', '')
         if len(self.designation) > 3:
-            self.designation = [self.get_closest_designation()]
+            self.designation.sort(key=lambda x: self.get_distance(x))
+            chinese = [x for x in self.designation if re.search('[\u4e00-\u9fff]', x.text)]
+            english = [x for x in self.designation if not re.search('[\u4e00-\u9fff]', x.text)]
+            self.designation = chinese[:1] + english[:1]
         else:
             self.designation.sort(key=lambda x: self.get_distance(x))
         return self.designation
@@ -93,7 +96,7 @@ class CADEntity:
             chinese = chinese_addition + chinese
         if english_addition and (not re.search(english_addition, english)):
             english = english_addition + english
-        return chinese +'\n' + english
+        return ((chinese or english) and chinese +'\n' + english) or ''
         
     def to_dict(self, bounds):
         """Convert Entity to Dictionary Entry for Dataframe Output"""
