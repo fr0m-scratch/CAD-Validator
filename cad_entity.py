@@ -73,27 +73,37 @@ class CADEntity:
             self.designation.sort(key=lambda x: self.get_distance(x))
         return self.designation
     
-    def designation_to_string(self):
+    def designation_to_string(self, bounds):
         """Convert Designation List to Output String"""
         if self.designation is None:
             return '-'
         des_list = self.trim_designation()
+        id_code = (self.relevance and self.relevance.text) or self.text
+        chinese_addition, english_addition = None, None
+        if id_code in bounds:
+            if self.diagram_number in bounds[id_code]:
+                chinese_addition = bounds[id_code][self.diagram_number]['Chinese']
+                english_addition = bounds[id_code][self.diagram_number]['English']
         chinese = [x.text for x in des_list if re.search('[\u4e00-\u9fff]', x.text)]
         english = [x.text for x in des_list if not re.search('[\u4e00-\u9fff]', x.text)]
         chinese.sort(key=lambda x: len(x), reverse=True)
         english.sort()
-        return ''.join(chinese) +'\n' + ''.join(english)
+        chinese, english = ''.join(chinese), ''.join(english)
+        if chinese_addition and (not re.search(chinese_addition, chinese)):
+            chinese = chinese_addition + chinese
+        if english_addition and (not re.search(english_addition, english)):
+            english = english_addition + english
+        return chinese +'\n' + english
         
-        
-    def to_dict(self):
+    def to_dict(self, bounds):
         """Convert Entity to Dictionary Entry for Dataframe Output"""
         return {'信号位号idcode': (self.relevance and self.relevance.text) or self.text, 
-                '扩展码extensioncode': (self.relevance and self.text) or '-',
-                "信号说明designation": self.designation_to_string(),
+                '扩展码extensioncode': (self.relevance and self.text) or '无扩展码',
+                "信号说明designation": self.designation_to_string(bounds),
                 "图号diagram number": self.diagram_number,
                 "版本rev.": self.rev,
                 "备注remark": "-",
-                "安全分级/分组Safetyclass/division": self.safety_class or '-',
+                "安全分级/分组Safetyclass/division": self.safety_class or '无安全分级/分组',
                 }
         
     def get_center(self, coordinates):

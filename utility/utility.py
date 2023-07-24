@@ -97,7 +97,7 @@ def read_diff(extracted, control, ref, extension = True, designation = True):
                 diff.append((control.loc[row,'序号serial number']+1, ref[col]))
                 if col not in diff_content:
                     diff_content[col] = {}
-                diff_content[col][(control.loc[row,'序号serial number']+1)] = extracted.loc[row, col].replace('\n', '') or 'None'
+                diff_content[col][(control.loc[row,'序号serial number']+1)] = extracted.loc[row, col].replace('\n', '') or '无描述'
     return diff, diff_content
 
 def output_diff(filepath, ref, comparing_data):
@@ -137,6 +137,70 @@ def output_diff(filepath, ref, comparing_data):
     wb.save(filepath)
 
 def get_resource_path(relative_path):
-        if hasattr(sys, '_MEIPASS'):
-            return os.path.join(sys._MEIPASS, relative_path)
-        return os.path.join(os.path.abspath("."), relative_path)
+    """解析编译后的数据文件路径"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+def contain(words,entities):
+        #根据关键词查找实体
+        res = []
+        for entity in entities:
+            if entity.text is not None:
+                text = re.search(words, entity.text)
+                if text is not None:
+                    res.append(entity)
+            if entity.tag is not None:
+                tag = re.search(words, entity.tag)
+                if tag is not None:
+                    res.append(entity)
+        return res
+    
+def not_contain(words, entities):
+        #根据关键词查找实体
+        res = []
+        for entity in entities:
+            if entity.text is not None:
+                text = re.search(words, entity.text)
+                if text is None:
+                    res.append(entity)
+            if entity.tag is not None:
+                tag = re.search(words, entity.tag)
+                if tag is None:
+                    res.append(entity)
+        return set(res)
+    
+def unformat_mtext(s, exclude_list=('P', 'S')):
+    """Returns string with removed format information
+
+    :param s: string with multitext
+    :param exclude_list: don't touch tags from this list. Default ('P', 'S') for
+                         newline and fractions
+
+    ::
+
+        >>> text = ur'{\\fGOST type A|b0|i0|c204|p34;TEST\\fGOST type A|b0|i0|c0|p34;123}'
+        >>> unformat_mtext(text)
+        u'TEST123'
+
+    """
+    s = re.sub(r'\{?\\[^%s][^;]+;' % ''.join(exclude_list), '', s)
+    s = re.sub(r'\}', '', s)
+    return s
+
+
+
+def mtext_to_string(s):
+    """
+    Returns string with removed format innformation as :func:`unformat_mtext` and
+    `\\P` (paragraphs) replaced with newlines
+
+    ::
+
+        >>> text = ur'{\\fGOST type A|b0|i0|c204|p34;TEST\\fGOST type A|b0|i0|c0|p34;123}\\Ptest321'
+        >>> mtext_to_string(text)
+        u'TEST123\\ntest321'
+
+    """
+
+    return unformat_mtext(s).replace(u'\\P', u'\n')

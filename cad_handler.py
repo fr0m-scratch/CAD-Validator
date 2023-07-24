@@ -32,9 +32,10 @@ class CADHandler:
         self.set_pos()
         self.set_diagram_number()
         self.set_sorting_pos()
-        self.set_rev_safty()
+        self.set_rev_safty_entity()
         self.identify_accessories()
         self.retrive_designation()
+        self.bind_designation_to_idcode()
         
     def inspect_CAD(self):
         #利用win32com.client模块连接CAD
@@ -121,27 +122,54 @@ class CADHandler:
             regions_with_diagrams.append((region[0], diagram_number))
         return regions_with_diagrams
             
-    def set_rev_safty(self):
-        #找到并设置版本和安全分级信息
+    def set_rev_safty_entity(self):
+        #找到并设置版本,安全分级信息以及工程图唯一实体
         anchors, _ = self.find_vital_entities()
         rev = self.generate_graph_rectangles(anchors, 8,5, -4, -5, True)
         safe = self.generate_graph_rectangles(anchors, 6,4, -31.5, -5, True)
         div = self.generate_graph_rectangles(anchors,11,4, -72,-5, True)
-        revs, safes, divs = {}, {}, {}
+        ent = self.generate_graph_rectangles(anchors, 20,15 , -92, 10, True )
+        revs, safes, divs, ents = {}, {}, {}, {}
         for entity in self.entities:
             if entity.type == "AcDbMText":
+                entity.text = mtext_to_string(entity.text) 
                 if self.check_within(entity.insertionpoint, rev):
                     revs[self.check_within(entity.insertionpoint, rev).diagram_number] = entity
                 if self.check_within(entity.insertionpoint, safe):
                     safes[self.check_within(entity.insertionpoint, safe).diagram_number] = entity
                 if self.check_within(entity.insertionpoint, div):
                     divs[self.check_within(entity.insertionpoint, div).diagram_number] = entity
+        bounds = self.contain('-')
+        for entity in bounds:
+            if self.check_within(entity.insertionpoint, ent):
+                if self.check_within(entity.insertionpoint, ent).diagram_number not in ents:
+                    ents[self.check_within(entity.insertionpoint, ent).diagram_number] = []
+                ents[self.check_within(entity.insertionpoint, ent).diagram_number].append(entity)
         for entity in self.entities:
             if entity.diagram_number is not None:
                 entity.rev = entity.diagram_number in revs and revs[entity.diagram_number].text or None
                 entity.safety_class = safes[entity.diagram_number].text + '/' + divs[entity.diagram_number].text
-
+                entity.diagram_entity = entity.diagram_number in ents and ents[entity.diagram_number] or None
+        self.bounds = ents
         return divs, revs, safes
+    
+    def bind_designation_to_idcode(self):
+        v_bind = {}
+        for _ in self.bounds.values():
+            for bound in _:
+                diagram_number = bound.diagram_number
+                idcode, designation = bound.text.split('-')
+                if idcode not in v_bind:
+                    v_bind[idcode] = {}
+                if diagram_number not in v_bind[idcode]:
+                    v_bind[idcode][diagram_number] = {"Chinese": "", "English": ""}
+                if designation is not None:
+                    if re.search('[\u4e00-\u9fff]', designation):
+                        v_bind[idcode][diagram_number]["Chinese"] += designation.strip()
+                    else:
+                        v_bind[idcode][diagram_number]["English"] += designation.strip()
+        self.bounds = v_bind
+        return v_bind
     
     def identify_accessories(self):
         #识别sensors, special_ios, actuators，这个函数的逻辑比较复杂，可以进一步refactor
@@ -277,11 +305,11 @@ class CADHandler:
         special_ios_dict = []
         actuators_dict = []
         for sensor in sensors:
-            sensors_dict.append(sensor.to_dict())
+            sensors_dict.append(sensor.to_dict(self.bounds))
         for special_io in special_ios:
-            special_ios_dict.append(special_io.to_dict())
+            special_ios_dict.append(special_io.to_dict(self.bounds))
         for actuator in actuators:
-            actuators_dict.append(actuator.to_dict())
+            actuators_dict.append(actuator.to_dict(self.bounds))
         df1 = pd.DataFrame.from_dict(sensors_dict)
         df2 = pd.DataFrame.from_dict(special_ios_dict)
         df3 = pd.DataFrame.from_dict(actuators_dict)
@@ -347,31 +375,11 @@ class CADHandler:
     
     def contain(self, words):
         #根据关键词查找实体
-        res = []
-        for entity in self.entities:
-            if entity.text is not None:
-                text = re.search(words, entity.text)
-                if text is not None:
-                    res.append(entity)
-            if entity.tag is not None:
-                tag = re.search(words, entity.tag)
-                if tag is not None:
-                    res.append(entity)
-        return res
+        return contain(words, self.entities)
     
     def not_contain(self, words):
         #根据关键词查找实体
-        res = []
-        for entity in self.entities:
-            if entity.text is not None:
-                text = re.search(words, entity.text)
-                if text is None:
-                    res.append(entity)
-            if entity.tag is not None:
-                tag = re.search(words, entity.tag)
-                if tag is None:
-                    res.append(entity)
-        return set(res)
+        return not_contain(words, self.entities)
     
     def retrive_designation(self):
         #识别每个实体相关的图例列表
