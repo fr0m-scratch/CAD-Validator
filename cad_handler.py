@@ -69,7 +69,7 @@ class CADHandler:
                     cad1_entity.parent = cad_entity
         progress.stop()
                     
-        with open('./data/entity_list.pkl', 'wb') as f:
+        with open(get_resource_path(".\data\entity_list.pkl"), 'wb') as f:
             pickle.dump(self.entities, f)
         
     def load_entities_from_file(self, filepath):

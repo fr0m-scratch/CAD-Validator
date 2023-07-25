@@ -89,6 +89,8 @@ class CADEntity:
                 english_addition = bounds[id_code][self.diagram_number]['English']
         chinese = [x.text for x in des_list if re.search('[\u4e00-\u9fff]', x.text)]
         english = [x.text for x in des_list if not re.search('[\u4e00-\u9fff]', x.text)]
+        if not (chinese or english):
+            return '无描述' 
         chinese.sort(key=lambda x: len(x), reverse=True)
         english.sort()
         chinese, english = ''.join(chinese), ''.join(english)
