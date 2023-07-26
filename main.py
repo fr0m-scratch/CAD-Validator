@@ -16,11 +16,11 @@ def main(filepath, mode):
         acad = CADHandler()
          
     #Compared Data Unification
-    targetpath = filepath
-    destpath = filepath[:-5] + "_copy.xlsx"
-    path = shutil.copy(targetpath, destpath)
-    
-    control, ref = read_sheet(path)
+    # targetpath = filepath
+    # destpath = filepath[:-5] + "_copy.xlsx"
+    # path = shutil.copy(targetpath, destpath)
+    path = filepath
+    control, ref = read_sheet(filepath)
     
     sensors, specials, actuators = acad.accessories.values()
     extracted = acad.accessories_to_df(sensors, specials, actuators)
@@ -41,7 +41,7 @@ def main(filepath, mode):
                                     specials_control, actuators_control))
     progress.start()
     progress.update(mark, advance=1)
-    return destpath
+    return filepath
     
 if __name__ == "__main__":
     print(sys.argv[1])
