@@ -1,23 +1,25 @@
 from typing import Any
 from cad_entity import CADEntity
 import win32com.client
+from pyautocad import Autocad
 from utility.utility import *  
 import pickle
 from rich.progress import Progress
 import re
 import pandas as pd
 from utility.accessories import accessories
-
+import comtypes
+import comtypes.client
 class CADHandler:
-    def __init__(self, filepath= None):
+    def __init__(self, filepath, load):
         self.acad = None
         self.doc = None
         self.modelspace = None
         self.entities = []
         self.accessories = {}
         #CAD Handler有两种初始化方式，一种是从CAD中读取，一种是从pkl（类JSON）文件中读取
-        if filepath is None:
-            self.inspect_CAD()
+        if load is not True:
+            self.inspect_CAD(filepath)
             self.load_entities()
         else:
             self.load_entities_from_file(filepath)
@@ -37,11 +39,23 @@ class CADHandler:
         self.retrive_designation()
         self.bind_designation_to_idcode()
         
-    def inspect_CAD(self):
+    def inspect_CAD(self, filepath):
         #利用win32com.client模块连接CAD
+        print("加载dwg格式CAD文件>>>>>>", filepath)
+        try:
+            
+            acad = comtypes.client.GetActiveObject("AutoCAD.Application", dynamic=True)
+        except:
+            
+            acad = comtypes.client.CreateObject("AutoCAD.Application", dynamic=True)
+        if acad.ActiveDocument.FullName != filepath:
+            doc = acad.Documents.Open(filepath)
+
+        
         self.acad = win32com.client.Dispatch("AutoCAD.Application")
-        self.doc = self.acad.ActiveDocument
+        self.doc = self.acad.ActiveDocument 
         self.modelspace = self.doc.modelspace 
+        print("加载完成")
     
     def set_sorting_pos(self):
         for entity in self.entities:
@@ -52,7 +66,8 @@ class CADHandler:
         progress = Progress()
         find = progress.add_task("[cyan2]Loading Entities:", total=3644)
         progress.start()  
-        for entity in self.modelspace:
+        for i in range(len(self.modelspace)):
+            entity = self.modelspace[i]
             progress.update(find, advance=1)
             
             if entity.ObjectName != "AcDbZombieEntity":
@@ -61,7 +76,6 @@ class CADHandler:
                 cad_entity = CADEntity(params)
                 self.entities.append(cad_entity)
             if entity.ObjectName == "AcDbBlockReference":
-                
                 for attribute in entity.GetAttributes():
                     params = parameter_retriving(attribute)
                     cad1_entity = CADEntity(params)

@@ -125,7 +125,7 @@ def output_diff(filepath, ref, comparing_data):
     
     def write_diff(writer, extracted, control, extension = True, designation = True ):
         pos, content = read_diff(extracted, control, ref, extension, designation)
-        insert_col = writer.max_column + 1
+        insert_col = writer.max_column + 3
         writer.insert_cols(insert_col, 1)
         for row, col in pos:
             writer.cell(row, col).font = Font(color='FF0000')

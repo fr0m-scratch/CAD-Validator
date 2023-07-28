@@ -26,3 +26,6 @@ set colors from the list of boolean values
 mark labels finished. insert a column of dicts containing diff contents 
 
 
+####测试后台打开，
+
+python 和c#改动后还没有编译

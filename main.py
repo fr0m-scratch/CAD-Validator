@@ -8,13 +8,15 @@ import sys
 import os
 install()
 
-def main(filepath, mode):
+def main(graphfilepath, filepath, mode):
     #CAD Info Extration
     if mode  == "load":
-        acad = CADHandler(get_resource_path(".\data\entity_list.pkl"))
+        acad = CADHandler(get_resource_path(".\data\entity_list.pkl"), True)
     elif mode == "read":
-        acad = CADHandler()
-         
+        if len(graphfilepath) < 9:
+            graphfilepath = get_resource_path(graphfilepath)
+        acad = CADHandler(graphfilepath, False)
+    
     #Compared Data Unification
     # targetpath = filepath
     # destpath = filepath[:-5] + "_copy.xlsx"
@@ -30,19 +32,21 @@ def main(filepath, mode):
     sensors, specials, actuators = extracted
     sensors_control, specials_control, actuators_control = control
     progress = Progress()
-    uni = progress.add_task("[blue]Unify[cyan2]data", total=1)
+    uni = progress.add_task("[cyan2]Unifydata", total=1)
     progress.start()
     progress.update(uni, advance=1)
-
+    progress.stop()
     #Mark and Write Diff to Master File
-    mark = progress.add_task("[blue]Mark[cyan2]diff", total=1)
+    mark = progress.add_task("[cyan2]Markdiff", total=1)
     output_diff(path, ref, (sensors, specials, 
                                     actuators, sensors_control, 
                                     specials_control, actuators_control))
+    
     progress.start()
     progress.update(mark, advance=1)
+    progress.stop()
     return filepath
     
 if __name__ == "__main__":
-    print(sys.argv[1])
-    main(sys.argv[1], sys.argv[2])
+    print(sys.argv[1], '#######',sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])
