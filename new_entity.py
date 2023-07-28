@@ -1,6 +1,6 @@
 import re
 class CADEntity:
-    def __init__(self, param_dict):
+    def __init__(self, type, param_dict):
         self.params = param_dict
         self.handle = param_dict['Handle']
         #图形中心点
@@ -8,7 +8,7 @@ class CADEntity:
         #插入点一般是图形的四个角，所以需要set_pos计算中心点
         self.insertionpoint = param_dict['InsertionPoint']
         self.layer = param_dict['Layer']
-        self.type = param_dict['ObjectName']
+        self.type = type
         self.area = param_dict['Area']
         self.length = param_dict['Length']
         self.height = param_dict['height']

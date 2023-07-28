@@ -10,6 +10,7 @@ import pandas as pd
 from utility.accessories import accessories
 import comtypes
 import comtypes.client
+from numba import jit
 class CADHandler:
     def __init__(self, filepath, load):
         self.acad = None
@@ -38,7 +39,8 @@ class CADHandler:
         self.identify_accessories()
         self.retrive_designation()
         self.bind_designation_to_idcode()
-        
+   
+    
     def inspect_CAD(self, filepath):
         #利用win32com.client模块连接CAD
         print("加载dwg格式CAD文件>>>>>>", filepath)
@@ -66,12 +68,12 @@ class CADHandler:
         progress = Progress()
         find = progress.add_task("[cyan2]Loading Entities:", total=3644)
         progress.start()  
+        
         for i in range(len(self.modelspace)):
             entity = self.modelspace[i]
             progress.update(find, advance=1)
             
             if entity.ObjectName != "AcDbZombieEntity":
-                
                 params = parameter_retriving(entity)
                 cad_entity = CADEntity(params)
                 self.entities.append(cad_entity)
@@ -81,6 +83,7 @@ class CADHandler:
                     cad1_entity = CADEntity(params)
                     self.entities.append(cad1_entity)
                     cad1_entity.parent = cad_entity
+            print(entity.ObjectName)
         progress.stop()
                     
         with open(get_resource_path(".\data\entity_list.pkl"), 'wb') as f:

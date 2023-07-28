@@ -13,7 +13,7 @@ def main(graphfilepath, filepath, mode):
     if mode  == "load":
         acad = CADHandler(get_resource_path(".\data\entity_list.pkl"), True)
     elif mode == "read":
-        if len(graphfilepath) < 9:
+        if re.search(r'\/', graphfilepath) is None:
             graphfilepath = get_resource_path(graphfilepath)
         acad = CADHandler(graphfilepath, False)
     
