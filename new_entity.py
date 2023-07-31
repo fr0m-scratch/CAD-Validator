@@ -1,25 +1,15 @@
 import re
+import ezdxf
+import math
+from ezdxf.entities import *
 class CADEntity:
-    def __init__(self, type, param_dict):
-        self.params = param_dict
-        self.handle = param_dict['Handle']
-        #图形中心点
-        self.pos = param_dict['InsertionPoint']
+    def __init__(self, entity, params):
+        self.entity = entity
+        self.params = params
         #插入点一般是图形的四个角，所以需要set_pos计算中心点
-        self.insertionpoint = param_dict['InsertionPoint']
-        self.layer = param_dict['Layer']
-        self.type = type
-        self.area = param_dict['Area']
-        self.length = param_dict['Length']
-        self.height = param_dict['height']
-        #一个CAD实体的文字内容可能是text也可能是tag
-        self.text = param_dict['TextString']
-        self.tag = param_dict['TagString'] 
-        self.color = param_dict['color']
-        #bounding_box是一个四元组，分别是左下角和右上角的坐标
-        self.bounding_box = param_dict['GetBoundingBox']
-        #coordinates是一个列表，每个元素是一个坐标元组
-        self.coordinates = param_dict['coordinates']
+        self.type = entity.dxftype()
+        #图形几何中心
+        self.pos = None
         self.relevance = None
         #图号
         self.diagram_number = None  
@@ -34,16 +24,131 @@ class CADEntity:
         self.safety_class = None
         #一些特殊的CAD图包含单一实体的信号，这些信号的信号位号是一样的，所以需要一个变量来记录
         self.diagram_entity = None
+        self.init_attribs()
+        
              
     def set_pos(self):
-        """Get Geometric Center of the Entity"""
-        if self.bounding_box is not None:
-            self.pos = self.get_center(tuple(self.bounding_box)[0:2])
-        elif self.pos is not None:
-            self.pos = self.pos[0:2]
-        elif self.coordinates is not None:
-            self.pos = self.get_center(self.coordinates[0:2])
-        return self.pos
+        match self.type:
+            case "TEXT":
+                self.pos = self.align_point or self.insert
+            case "CIRCLE":
+                self.insert = self.center
+                self.pos = self.center
+                self.area = math.pi * self.radius**2
+            case "LINE":
+                self.insert = self.start
+                self.pos = self.get_center([self.start, self.end])
+                self.length = ezdxf.math.distance(self.start, self.end)
+            case "ARC":
+                self.pos = self.center
+                self.insert = self.center
+            case "LWPOLYLINE":
+                with self.entity.points('xy') as points:
+                    self.area = ezdxf.math.area(points)
+                    self.pos = self.get_center(points)
+                self.insert = self.pos
+            case "INSERT":
+                self.pos = self.insert
+            case "MTEXT":
+                self.pos = self.attachment_to_center()
+                # return self.attachment_to_center()
+            case "ATTDEF":
+                self.pos = self.insert
+                # return self.insert
+            case "ATTRIB":
+                self.pos = self.insert
+                # return self.insert
+            case "HATCH":
+                self.pos = self.entity.seeds[0]
+                self.insert = self.entity.seeds[0]
+                paths = self.entity.paths.external_paths()
+                vertices = []
+                if paths:
+                    path = next(iter(paths))
+                if (path.type == BoundaryPathType.EDGE) and (path.edges[0].type == EdgeType.LINE):
+                    for edge in path.edges:
+                        vertices.append(edge.start)
+                        vertices.append(edge.end) 
+                self.area = ezdxf.math.area(vertices)
+        self.insert = tuple(self.insert)
+        self.pos = tuple(self.pos)       
+                
+    def attachment_to_center(self):
+        """MText.dxf.attachment_point	Value
+            MTEXT_TOP_LEFT	1
+            MTEXT_TOP_CENTER	2
+            MTEXT_TOP_RIGHT	3
+            MTEXT_MIDDLE_LEFT	4
+            MTEXT_MIDDLE_CENTER	5
+            MTEXT_MIDDLE_RIGHT	6
+            MTEXT_BOTTOM_LEFT	7
+            MTEXT_BOTTOM_CENTER	8
+            MTEXT_BOTTOM_RIGHT	9"""
+        match self.attachment: 
+            case 1:
+                return (self.insert[0] + self.width/2, self.insert[1] - self.height/2)
+            case 2:
+                return (self.insert[0], self.insert[1] - self.height/2)
+            case 3:
+                return (self.insert[0] - self.width/2, self.insert[1] - self.height/2)
+            case 4:
+                return (self.insert[0] + self.width/2, self.insert[1])
+            case 5:
+                return (self.insert[0], self.insert[1])
+            case 6:
+                return (self.insert[0] - self.width/2, self.insert[1])
+            case 7: 
+                return (self.insert[0] + self.width/2, self.insert[1] + self.height/2)
+            case 8:
+                return (self.insert[0], self.insert[1] + self.height/2)
+            case 9:
+                return (self.insert[0] - self.width/2, self.insert[1] + self.height/2)
+
+                
+            
+    def align_to_center(self):
+        """dxf.valign
+        Vertical alignment flag as int value, use the set_placement() and get_align_enum() methods to handle text alignment, the default value is 0.
+
+        0	Baseline
+        1	Bottom
+        2	Middle
+        3	Top"""
+        """dxf.halign
+        Horizontal alignment flag as int value, use the set_placement() and get_align_enum() methods to handle text alignment, the default value is 0.
+
+        0	Left
+        2	Right
+        3	Aligned (if vertical alignment = 0)
+        4	Middle (if vertical alignment = 0)
+        5	Fit (if vertical alignment = 0)"""
+        return
+        
+    
+    def init_attribs(self):
+        try:
+            self.height = self.params['char_height']
+        except KeyError:
+            try:
+                self.height = self.params['height']
+            except KeyError:
+                self.height = None
+        try:
+            self.attachment = self.params['attachment_point']
+        except KeyError:
+            self.attachment = None
+        self.set_pos()
+        
+    
+    def __getattribute__(self, __name: str):
+        """Get Attribute from Params"""
+        try:
+            return object.__getattribute__(self, __name)
+        except AttributeError:
+            try:
+                return self.params.get(__name)
+            except KeyError:
+                return None
     
     def relevance_from_associates(self):
         """Find the most relevant(In terms of distance) associate from the associates list"""
@@ -116,7 +221,7 @@ class CADEntity:
         return (x, y)
         
     def __repr__(self):
-        return f"{self.diagram_number} {self.type} {self.text}"
+        return f"{self.handle} {self.type} {self.text}"
     
     def set_sorting_pos(self):
         self.sorting_pos =  (int(round(float(self.pos[0])/5)*5), round(float(self.pos[1])))

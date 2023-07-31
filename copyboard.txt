@@ -127,4 +127,14 @@ switch (obj.TypeName) {
      
        
        }
-     
+['align_point', 'associative', 'attachment_point', 
+'attribs_follow', 'attribute_type', 'center', 
+'char_height', 'color', 'const_width', 'defined_height',
+ 'elevation', 'end', 'end_angle', 'extrusion', 'flags',
+  'flow_direction', 'halign', 'handle', 'hatch_style', 
+  'height', 'insert', 'layer', 'line_spacing_factor', 
+  'line_spacing_style', 'linetype', 'ltscale', 'material_handle',
+   'name', 'owner', 'pattern_name', 'pattern_type', 'pixel_size', 
+   'prompt', 'radius', 'rotation', 'solid_fill', 'start', 
+   'start_angle', 'style', 'tag', 'text', 'version', 'width', 
+   'xscale', 'yscale', 'zscale']

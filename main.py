@@ -26,6 +26,7 @@ def main(graphfilepath, filepath, mode):
     
     sensors, specials, actuators = acad.accessories.values()
     extracted = acad.accessories_to_df(sensors, specials, actuators)
+    print(extracted)
     for c, e in zip(control, extracted):
         unify(c)
         unify(e)

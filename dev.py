@@ -1,34 +1,40 @@
 from utility.utility import *
-from cad_entity import CADEntity
+from new_entity import CADEntity
 from cad_handler import CADHandler
 import shutil
 from rich.progress import Progress
 from rich.traceback import install
 import sys
 import ezdxf
+from ezdxf.enums import TextEntityAlignment
 import os
+from ezdxf.entities import *
+from ezdxf.addons import odafc
 install()
 from ezdxf.addons.dxf2code import entities_to_code
+import datetime
+start = datetime.datetime.now()
+entities = ezdxf.readfile("t.dxf").modelspace()
 
-entities = ezdxf.readfile("TFS.dxf").modelspace()
+defs = [(e.dxftype(), e.dxf.tag) for e in entities if e.dxf.hasattr('tag') and 'TFS' in e.dxf.tag]
 
-defs = [(e.dxftype(), e.dxf.text) for e in entities if e.dxf.hasattr('tag') and 'YTFS' in e.dxf.text]
-print(defs)
-cent = [CADEntity(e.dxftype(), e.dxfattribs() ) for e in entities]
+ents = []
+with Progress() as progress:
+    loading = progress.add_task("[cyan2]Loading DXF", total=len(entities))
+    for e in entities:
+        if e.dxftype() != "ACAD_PROXY_ENTITY":
+            ents.append(CADEntity(e, e.dxfattribs()))
+        if e.dxftype() == "INSERT":
+            for attr in e.attribs:
+                ents.append(CADEntity(attr, attr.dxfattribs()))
+        progress.update(loading, advance=1)
 
+# for e in ents:
+#     print(type(e.pos))
+acad = CADHandler(ents)
 
+acad.set_params()
 
-
-
-# def main(graphfilepath, filepath, mode):
-#     #CAD Info Extration
-#     if mode  == "load":
-#         acad = CADHandler(get_resource_path(".\data\entity_list.pkl"), True)
-#     elif mode == "read":
-#         if re.search(r'\/', graphfilepath) is None:
-#             graphfilepath = get_resource_path(graphfilepath)
-#         acad = CADHandler(graphfilepath, False)
-#     a = sum([1 for _ in acad.entities if _.bounding_box is not None])
-#     print(a)
-    
-# main("TFS.dwg", "control.xlsx", "load")
+for _ in acad.accessories.values():
+    print(len(_))
+                

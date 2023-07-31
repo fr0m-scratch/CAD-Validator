@@ -1,5 +1,5 @@
 from typing import Any
-from cad_entity import CADEntity
+from new_entity import CADEntity
 import win32com.client
 from pyautocad import Autocad
 from utility.utility import *  
@@ -12,13 +12,16 @@ import comtypes
 import comtypes.client
 from numba import jit
 class CADHandler:
-    def __init__(self, filepath, load):
+    def __init__(self, lis, filepath=None, load=None):
         self.acad = None
         self.doc = None
         self.modelspace = None
         self.entities = []
         self.accessories = {}
         #CAD Handler有两种初始化方式，一种是从CAD中读取，一种是从pkl（类JSON）文件中读取
+        if lis:
+            self.entities = lis
+            return
         if load is not True:
             self.inspect_CAD(filepath)
             self.load_entities()
@@ -34,7 +37,7 @@ class CADHandler:
         #初始化CAD实体的各个参数 
         self.set_pos()
         self.set_diagram_number()
-        self.set_sorting_pos()
+        # self.set_sorting_pos()
         self.set_rev_safty_entity()
         self.identify_accessories()
         self.retrive_designation()
@@ -122,7 +125,8 @@ class CADHandler:
                 
     def generate_graph_rectangles(self, anchors, width, height, w_correction, h_correction, true_point = False):
         if true_point:
-            rectangles = [((r1.insertionpoint[0]-width+w_correction, r1.insertionpoint[0]+w_correction, r1.insertionpoint[1]+h_correction, r1.insertionpoint[1]+height+h_correction), r1) for r1 in anchors]
+            #write a for loop try except to identify the error
+            rectangles = [((r1.insert[0]-width+w_correction, r1.insert[0]+w_correction, r1.insert[1]+h_correction, r1.insert[1]+height+h_correction), r1) for r1 in anchors]
         else:
             rectangles = [((r1.pos[0]-width+w_correction, r1.pos[0]+w_correction, r1.pos[1]+h_correction, r1.pos[1]+height+h_correction), r1) for r1 in anchors]
         return rectangles
@@ -150,18 +154,18 @@ class CADHandler:
         for entity in self.entities:
             if entity.type == "AcDbMText":
                 entity.text = mtext_to_string(entity.text) 
-                if self.check_within(entity.insertionpoint, rev):
-                    revs[self.check_within(entity.insertionpoint, rev).diagram_number] = entity
-                if self.check_within(entity.insertionpoint, safe):
-                    safes[self.check_within(entity.insertionpoint, safe).diagram_number] = entity
-                if self.check_within(entity.insertionpoint, div):
-                    divs[self.check_within(entity.insertionpoint, div).diagram_number] = entity
+                if self.check_within(entity.insert, rev):
+                    revs[self.check_within(entity.insert, rev).diagram_number] = entity
+                if self.check_within(entity.insert, safe):
+                    safes[self.check_within(entity.insert, safe).diagram_number] = entity
+                if self.check_within(entity.insert, div):
+                    divs[self.check_within(entity.insert, div).diagram_number] = entity
         bounds = self.contain('-')
         for entity in bounds:
-            if self.check_within(entity.insertionpoint, ent):
-                if self.check_within(entity.insertionpoint, ent).diagram_number not in ents:
-                    ents[self.check_within(entity.insertionpoint, ent).diagram_number] = []
-                ents[self.check_within(entity.insertionpoint, ent).diagram_number].append(entity)
+            if self.check_within(entity.insert, ent):
+                if self.check_within(entity.insert, ent).diagram_number not in ents:
+                    ents[self.check_within(entity.insert, ent).diagram_number] = []
+                ents[self.check_within(entity.insert, ent).diagram_number].append(entity)
         for entity in self.entities:
             if entity.diagram_number is not None:
                 entity.rev = entity.diagram_number in revs and revs[entity.diagram_number].text or None
@@ -194,9 +198,9 @@ class CADHandler:
         special_ios = []
         actuators = []
         sys = sorted([entity for entity in self.entities if entity.tag and entity.text
-                      and re.search("INSSYS", entity.tag)], key = lambda x: x.sorting_pos)
+                      and re.search("INSSYS", entity.tag)], key = lambda x: x.pos)
         ide = sorted([entity for entity in self.entities if entity.tag and entity.text
-                      and re.search("INSIDE", entity.tag)], key = lambda x: x.sorting_pos)
+                      and re.search("INSIDE", entity.tag)], key = lambda x: x.pos)
         
         for sys_entity, ide_entity in zip(sys, ide):
             entity = "YTFS" + ide_entity.text + sys_entity.text
@@ -378,7 +382,7 @@ class CADHandler:
         duplicates = [item for item in text_dict.values() if len(item) > 1]
         
         for duo in duplicates:
-            duo.sort(key=lambda x: x.sorting_pos, reverse = True)
+            duo.sort(key=lambda x: x.pos, reverse = True)
             for spe in duo[1:]:
                 special_ios.remove(spe)
         return special_ios
