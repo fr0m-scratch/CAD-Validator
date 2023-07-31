@@ -43,6 +43,12 @@ class CADEntity:
                 self.pos = self.center
                 self.insert = self.center
             case "LWPOLYLINE":
+                mlength=[]
+                #分解,炸开
+                for i in self.entity.explode():
+                    mlength.append(ezdxf.math.distance(i.dxf.start, i.dxf.end))
+                self.length = sum(mlength)
+                print(self.length)
                 with self.entity.points('xy') as points:
                     self.area = ezdxf.math.area(points)
                     self.pos = self.get_center(points)
@@ -70,8 +76,8 @@ class CADEntity:
                         vertices.append(edge.start)
                         vertices.append(edge.end) 
                 self.area = ezdxf.math.area(vertices)
-        self.insert = tuple(self.insert)
-        self.pos = tuple(self.pos)       
+        self.insert = tuple(self.insert)[0:2]
+        self.pos = tuple(self.pos)[0:2]       
                 
     def attachment_to_center(self):
         """MText.dxf.attachment_point	Value
@@ -137,6 +143,8 @@ class CADEntity:
             self.attachment = self.params['attachment_point']
         except KeyError:
             self.attachment = None
+        if self.type == 'MTEXT':
+            self.text = self.entity.plain_text()
         self.set_pos()
         
     

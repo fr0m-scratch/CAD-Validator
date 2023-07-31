@@ -1,6 +1,5 @@
 from typing import Any
 from new_entity import CADEntity
-import win32com.client
 from pyautocad import Autocad
 from utility.utility import *  
 import pickle
@@ -8,25 +7,16 @@ from rich.progress import Progress
 import re
 import pandas as pd
 from utility.accessories import accessories
-import comtypes
-import comtypes.client
 from numba import jit
+import ezdxf
+from ezdxf.entities import *
+from ezdxf.enums import TextEntityAlignment
 class CADHandler:
-    def __init__(self, lis, filepath=None, load=None):
-        self.acad = None
-        self.doc = None
-        self.modelspace = None
+    def __init__(self, filepath):
+        self.modelspace = ezdxf.readfile(filepath).modelspace()
         self.entities = []
         self.accessories = {}
-        #CAD Handler有两种初始化方式，一种是从CAD中读取，一种是从pkl（类JSON）文件中读取
-        if lis:
-            self.entities = lis
-            return
-        if load is not True:
-            self.inspect_CAD(filepath)
-            self.load_entities()
-        else:
-            self.load_entities_from_file(filepath)
+        self.load_entities()
         self.set_params()
             
     def set_pos(self):
@@ -42,25 +32,7 @@ class CADHandler:
         self.identify_accessories()
         self.retrive_designation()
         self.bind_designation_to_idcode()
-   
-    
-    def inspect_CAD(self, filepath):
-        #利用win32com.client模块连接CAD
-        print("加载dwg格式CAD文件>>>>>>", filepath)
-        try:
-            
-            acad = comtypes.client.GetActiveObject("AutoCAD.Application", dynamic=True)
-        except:
-            
-            acad = comtypes.client.CreateObject("AutoCAD.Application", dynamic=True)
-        if acad.ActiveDocument.FullName != filepath:
-            doc = acad.Documents.Open(filepath)
 
-        
-        self.acad = win32com.client.Dispatch("AutoCAD.Application")
-        self.doc = self.acad.ActiveDocument 
-        self.modelspace = self.doc.modelspace 
-        print("加载完成")
     
     def set_sorting_pos(self):
         for entity in self.entities:
@@ -71,38 +43,23 @@ class CADHandler:
         progress = Progress()
         find = progress.add_task("[cyan2]Loading Entities:", total=3644)
         progress.start()  
-        
         for i in range(len(self.modelspace)):
             entity = self.modelspace[i]
+            if entity.dxftype() != "ACAD_PROXY_ENTITY":
+                self.entities.append(CADEntity(entity, entity.dxfattribs()))
+            if entity.dxftype() == "INSERT":
+                for attr in entity.attribs:
+                    self.entities.append(CADEntity(attr, attr.dxfattribs()))
             progress.update(find, advance=1)
-            
-            if entity.ObjectName != "AcDbZombieEntity":
-                params = parameter_retriving(entity)
-                cad_entity = CADEntity(params)
-                self.entities.append(cad_entity)
-            if entity.ObjectName == "AcDbBlockReference":
-                for attribute in entity.GetAttributes():
-                    params = parameter_retriving(attribute)
-                    cad1_entity = CADEntity(params)
-                    self.entities.append(cad1_entity)
-                    cad1_entity.parent = cad_entity
-            print(entity.ObjectName)
         progress.stop()
                     
-        with open(get_resource_path(".\data\entity_list.pkl"), 'wb') as f:
-            pickle.dump(self.entities, f)
         
-    def load_entities_from_file(self, filepath):
-        #从pkl文件中读取实体信息，存入self.entities
-        with open(filepath, 'rb') as f:
-            self.entities = pickle.load(f)
-    
     def find_vital_entities(self):
         #找到图号相关信息的实体
         vital_coordinates = []
         nums = []
         for entity in self.entities:
-            if entity.type == "AcDbAttributeDefinition":
+            if entity.type == "ATTDEF":
                 if entity.tag.startswith("H"):
                     vital_coordinates.append(entity)
                 elif entity.text == "1":
@@ -152,8 +109,7 @@ class CADHandler:
         ent = self.generate_graph_rectangles(anchors, 25,15 , -92, 10, True )
         revs, safes, divs, ents = {}, {}, {}, {}
         for entity in self.entities:
-            if entity.type == "AcDbMText":
-                entity.text = mtext_to_string(entity.text) 
+            if entity.type == "MTEXT":
                 if self.check_within(entity.insert, rev):
                     revs[self.check_within(entity.insert, rev).diagram_number] = entity
                 if self.check_within(entity.insert, safe):
@@ -169,7 +125,9 @@ class CADHandler:
         for entity in self.entities:
             if entity.diagram_number is not None:
                 entity.rev = entity.diagram_number in revs and revs[entity.diagram_number].text or None
+                
                 entity.safety_class = safes[entity.diagram_number].text + '/' + divs[entity.diagram_number].text
+                
                 entity.diagram_entity = entity.diagram_number in ents and ents[entity.diagram_number] or None
         self.bounds = ents
         return divs, revs, safes
@@ -230,7 +188,7 @@ class CADHandler:
         varrow_regions = self.get_target_regions(varrows, 10,10,10,10)
         
         for entity in self.entities:
-            if entity.type == "AcDbMText":
+            if entity.type == "MTEXT":
                 if entity.color == 4:
                     relevance = self.check_within(entity.pos, unmatched_regions, overload=True)
                     if relevance:
@@ -278,14 +236,14 @@ class CADHandler:
         varrows = []
         for entity in self.entities:
             match entity.type:
-                case "AcDbPolyline":
+                case "LWPOLYLINE":
                     if 3.8<entity.length< 5:                                
                         relevance = self.check_within(entity.pos, regions)
                         if relevance is not None:
                             entity.relevance = relevance
                             relevance.accessories.append(entity)
                             varrows.append(entity)
-                case "AcDbHatch":
+                case "HATCH":
                     if 1.29< entity.area <1.3:
                         relevance = self.check_within(entity.pos, regions)
                         if relevance is not None:
@@ -412,7 +370,7 @@ class CADHandler:
         chinese_illustration = []
         for chi in chinese:
             relevance = self.check_within(chi.pos, regions, overload=True)
-            if relevance is not None and chi.type == "AcDbMText":
+            if relevance is not None and chi.type == "MTEXT":
                 chi.associates.extend(relevance)
                 chi.relevance = chi.relevance_from_associates()
                 chinese_illustration.append(chi)
@@ -431,7 +389,7 @@ class CADHandler:
         non_chinese = self.not_contain(r'[\u3400-\u9FFF]+')
         english_illustration = []
         for entity in non_chinese:
-            if entity.type == "AcDbMText":
+            if entity.type == "MTEXT":
                 relevance = self.check_within(entity.pos, illu_regions,overload=True)
                 if relevance is not None:
                     entity.associates.extend(relevance)
