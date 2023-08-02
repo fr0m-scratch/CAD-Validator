@@ -8,30 +8,25 @@ import sys
 import os
 install()
 
-def main(graphfilepath, filepath, mode):
-    #CAD Info Extration
-    if mode  == "load":
-        acad = CADHandler(get_resource_path(".\data\entity_list.pkl"), True)
-    elif mode == "read":
-        if re.search(r'\/', graphfilepath) is None:
-            graphfilepath = get_resource_path(graphfilepath)
-        acad = CADHandler(graphfilepath, False)
-    
-    #Compared Data Unification
-    # targetpath = filepath
-    # destpath = filepath[:-5] + "_copy.xlsx"
-    # path = shutil.copy(targetpath, destpath)
+def main(graphfilepath, filepath):
+    if re.search(r'\/', graphfilepath) is None:
+        graphfilepath = get_resource_path(graphfilepath)
+    acad = CADHandler(graphfilepath)
+
     path = filepath
     control, ref = read_sheet(filepath)
     
     sensors, specials, actuators = acad.accessories.values()
     extracted = acad.accessories_to_df(sensors, specials, actuators)
-    print(extracted)
+    
     for c, e in zip(control, extracted):
         unify(c)
         unify(e)
     sensors, specials, actuators = extracted
     sensors_control, specials_control, actuators_control = control
+    for c,ce ,e, ee in zip(actuators_control['信号位号idcode'], actuators_control['扩展码extensioncode'], actuators['信号位号idcode'], actuators['扩展码extensioncode']):
+        print(c, ce, e, ee)
+    
     progress = Progress()
     uni = progress.add_task("[cyan2]Unifydata", total=1)
     progress.start()
@@ -43,6 +38,7 @@ def main(graphfilepath, filepath, mode):
                                     actuators, sensors_control, 
                                     specials_control, actuators_control))
     
+    
     progress.start()
     progress.update(mark, advance=1)
     progress.stop()
@@ -50,4 +46,4 @@ def main(graphfilepath, filepath, mode):
     
 if __name__ == "__main__":
     print(sys.argv[1], '#######',sys.argv[2])
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1], sys.argv[2])

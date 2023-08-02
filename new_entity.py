@@ -2,6 +2,8 @@ import re
 import ezdxf
 import math
 from ezdxf.entities import *
+from utility.utility import *
+import copy
 class CADEntity:
     def __init__(self, entity, params):
         self.entity = entity
@@ -15,6 +17,7 @@ class CADEntity:
         self.diagram_number = None  
         self.sorting_pos = None
         self.parent = None
+        self.children = {}
         self.associates = []
         self.designation = []
         self.accessories = []
@@ -25,6 +28,7 @@ class CADEntity:
         #一些特殊的CAD图包含单一实体的信号，这些信号的信号位号是一样的，所以需要一个变量来记录
         self.diagram_entity = None
         self.init_attribs()
+        self.set_pos()
         
              
     def set_pos(self):
@@ -45,25 +49,28 @@ class CADEntity:
             case "LWPOLYLINE":
                 mlength=[]
                 #分解,炸开
-                for i in self.entity.explode():
-                    mlength.append(ezdxf.math.distance(i.dxf.start, i.dxf.end))
+                segments = self.entity.virtual_entities()
+                for i in segments:
+                    if i.dxftype() == 'LINE':
+                        mlength.append(ezdxf.math.distance(i.dxf.start, i.dxf.end))
+                    elif i.dxftype() == 'ARC':
+                        length, area, CADArea, center = get_arc_length_area(i)
+                        mlength.append(length)
+                        
                 self.length = sum(mlength)
-                print(self.length)
                 with self.entity.points('xy') as points:
                     self.area = ezdxf.math.area(points)
                     self.pos = self.get_center(points)
+
                 self.insert = self.pos
             case "INSERT":
                 self.pos = self.insert
             case "MTEXT":
                 self.pos = self.attachment_to_center()
-                # return self.attachment_to_center()
             case "ATTDEF":
                 self.pos = self.insert
-                # return self.insert
             case "ATTRIB":
                 self.pos = self.insert
-                # return self.insert
             case "HATCH":
                 self.pos = self.entity.seeds[0]
                 self.insert = self.entity.seeds[0]
@@ -78,7 +85,8 @@ class CADEntity:
                 self.area = ezdxf.math.area(vertices)
         self.insert = tuple(self.insert)[0:2]
         self.pos = tuple(self.pos)[0:2]       
-                
+    
+             
     def attachment_to_center(self):
         """MText.dxf.attachment_point	Value
             MTEXT_TOP_LEFT	1
@@ -143,9 +151,9 @@ class CADEntity:
             self.attachment = self.params['attachment_point']
         except KeyError:
             self.attachment = None
-        if self.type == 'MTEXT':
-            self.text = self.entity.plain_text()
-        self.set_pos()
+        if hasattr(self.entity, 'plain_text'):
+            self.text = self.entity.plain_text() 
+        
         
     
     def __getattribute__(self, __name: str):
@@ -229,7 +237,7 @@ class CADEntity:
         return (x, y)
         
     def __repr__(self):
-        return f"{self.handle} {self.type} {self.text}"
+        return f"{self.handle} {self.type} {self.diagram_number} {self.text}"
     
     def set_sorting_pos(self):
         self.sorting_pos =  (int(round(float(self.pos[0])/5)*5), round(float(self.pos[1])))

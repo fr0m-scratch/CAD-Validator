@@ -6,6 +6,8 @@ from openpyxl.styles import Font, Color, Alignment, Border, Side, PatternFill
 from rich.progress import Progress
 import os
 import sys
+import ezdxf 
+import math
 def find_graph_id(coordinates, rectangles):
     #coordinates is a tuple of x and y
     #rectangles 是一个列表，每个元素是一个元组，元组的第一个元素是一个四元组，分别是左下角和右上角的坐标，第二个元素是图形的id
@@ -56,7 +58,7 @@ def enum_to_dict(enum):
 def read_sheet(filepath):
     #读取excel表格，返回一个元组，元组的每个元素是一个dataframe，分别是SENSOR_IO, SPECIAL_IO, ACTUATOR_IO
     with Progress() as progress:
-        read = progress.add_task("[blue]Read[cyan2]file", total=14)
+        read = progress.add_task("[cyan2]Read[cyan2]file", total=14)
         sensors_control = pd.read_excel(filepath, sheet_name='SENSOR_IO')
         progress.update(read, advance=4)
         specials_control = pd.read_excel(filepath, sheet_name='SPECIAL_IO')
@@ -117,10 +119,11 @@ def output_diff(filepath, ref, comparing_data):
     actuators_writer = wb['ACTUATOR_IO']
     col_dict = {
         "信号位号idcode": (1, "CAD信号位号"),
-        "信号说明designation": (2, "CAD信号说明"),
-        "安全分级/分组Safetyclass/division": (3, "CAD安全分级/分组"),
-        "图号diagram number": (4, "CAD图号"),
-        "版本rev.": (5, "CAD版本"),
+        "扩展码extensioncode": (2, "CAD扩展码"),
+        "信号说明designation": (3, "CAD信号说明"),
+        "安全分级/分组Safetyclass/division": (4, "CAD安全分级/分组"),
+        "图号diagram number": (5, "CAD图号"),
+        "版本rev.": (6, "CAD版本"),
     }
     
     def write_diff(writer, extracted, control, extension = True, designation = True ):
@@ -232,4 +235,21 @@ def abbreviation_match(abr, ori, threshold = 1000):
         return True
     elif j == len(ori):
         return False
-            
+    
+def get_arc_length_area(e):
+    end_a = e.dxf.end_angle
+    start_a=e.dxf.start_angle
+    r=e.dxf.radius
+    #弧长l = A * np.pi * R / 180
+    a=end_a+(360 if start_a>end_a else 0)-start_a
+    l=a*r*math.pi/180
+    #圆弧面积
+    area=l*r/2
+    #CAD圆弧面积=圆弧面积 加或减 三角面积
+    arc_delta=ezdxf.math.area([e.start_point,e.end_point,e.dxf.center])
+    cad_area=area - (arc_delta if end_a-start_a<180 else -1*arc_delta)
+    #圆弧中点坐标
+    x= e.dxf.center[0]+r*math.cos(math.radians(a/2+start_a));
+    y= e.dxf.center[1]+r*math.sin(math.radians(a/2+start_a));
+    arc_mid=x,y
+    return l,area,cad_area,arc_mid

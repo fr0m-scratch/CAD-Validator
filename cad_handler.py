@@ -1,5 +1,5 @@
 from typing import Any
-from new_entity import CADEntity
+from cad_entity import CADEntity
 from pyautocad import Autocad
 from utility.utility import *  
 import pickle
@@ -11,29 +11,29 @@ from numba import jit
 import ezdxf
 from ezdxf.entities import *
 from ezdxf.enums import TextEntityAlignment
+from ezdxf.addons import odafc
 class CADHandler:
     def __init__(self, filepath):
-        self.modelspace = ezdxf.readfile(filepath).modelspace()
+        self.doc = ezdxf.readfile(filepath)
         self.entities = []
+        self.systems = []
+        self.extension = {'OD', 'CO', 'P', 'C', 'CP', 'FP', 'CD', 'RC', 'OP'}
+        self.special_postfix = {'SY', 'MC', 'MY'}
+        self.actuators_postfix = {'VV', 'VL'}
         self.accessories = {}
         self.load_entities()
         self.set_params()
+        
             
-    def set_pos(self):
-        for entity in self.entities:
-            entity.set_pos()
-    
     def set_params(self):
         #初始化CAD实体的各个参数 
-        self.set_pos()
         self.set_diagram_number()
-        # self.set_sorting_pos()
+        self.set_sorting_pos()
         self.set_rev_safty_entity()
         self.identify_accessories()
         self.retrive_designation()
         self.bind_designation_to_idcode()
-
-    
+  
     def set_sorting_pos(self):
         for entity in self.entities:
             entity.set_sorting_pos()
@@ -43,17 +43,21 @@ class CADHandler:
         progress = Progress()
         find = progress.add_task("[cyan2]Loading Entities:", total=3644)
         progress.start()  
-        for i in range(len(self.modelspace)):
-            entity = self.modelspace[i]
-            if entity.dxftype() != "ACAD_PROXY_ENTITY":
-                self.entities.append(CADEntity(entity, entity.dxfattribs()))
-            if entity.dxftype() == "INSERT":
-                for attr in entity.attribs:
-                    self.entities.append(CADEntity(attr, attr.dxfattribs()))
+        for i in range(len(self.doc.modelspace())):
+            obj = self.doc.modelspace()[i]
+            if obj.dxftype() == "INSERT":
+                object = CADEntity(obj, obj.dxfattribs())
+                self.entities.append(object)
+                for attr in obj.attribs:
+                    attrib = CADEntity(attr, attr.dxfattribs())
+                    attrib.parent = object
+                    object.children[attrib.tag] = attrib
+                    self.entities.append(attrib)
+            elif obj.dxftype() != "ACAD_PROXY_ENTITY":
+                self.entities.append(CADEntity(obj, obj.dxfattribs()))
             progress.update(find, advance=1)
         progress.stop()
-                    
-        
+                       
     def find_vital_entities(self):
         #找到图号相关信息的实体
         vital_coordinates = []
@@ -107,7 +111,8 @@ class CADHandler:
         safe = self.generate_graph_rectangles(anchors, 6,4, -31.5, -5, True)
         div = self.generate_graph_rectangles(anchors,11,4, -72,-5, True)
         ent = self.generate_graph_rectangles(anchors, 25,15 , -92, 10, True )
-        revs, safes, divs, ents = {}, {}, {}, {}
+        sys = self.generate_graph_rectangles(anchors, 25,5 , -100, -5, True )
+        revs, safes, divs, ents, syss = {}, {}, {}, {}, {}
         for entity in self.entities:
             if entity.type == "MTEXT":
                 if self.check_within(entity.insert, rev):
@@ -116,6 +121,8 @@ class CADHandler:
                     safes[self.check_within(entity.insert, safe).diagram_number] = entity
                 if self.check_within(entity.insert, div):
                     divs[self.check_within(entity.insert, div).diagram_number] = entity
+                if self.check_within(entity.insert, sys):
+                    syss[self.check_within(entity.insert, sys).diagram_number] = entity
         bounds = self.contain('-')
         for entity in bounds:
             if self.check_within(entity.insert, ent):
@@ -129,8 +136,15 @@ class CADHandler:
                 entity.safety_class = safes[entity.diagram_number].text + '/' + divs[entity.diagram_number].text
                 
                 entity.diagram_entity = entity.diagram_number in ents and ents[entity.diagram_number] or None
+                if entity.diagram_entity and entity.diagram_entity[0]:
+                    entity.diagram_entity = entity.diagram_entity[0].text.split('-')[0]
+                
+                entity.sys = entity.diagram_number in syss and syss[entity.diagram_number].text or None
+                self.systems.append(entity.sys)
         self.bounds = ents
-        return divs, revs, safes
+        self.systems = list(set(self.systems))
+        
+        return divs, revs, safes, ents, syss
     
     def bind_designation_to_idcode(self):
         v_bind = {}
@@ -155,45 +169,48 @@ class CADHandler:
         sensors = []
         special_ios = []
         actuators = []
-        sys = sorted([entity for entity in self.entities if entity.tag and entity.text
-                      and re.search("INSSYS", entity.tag)], key = lambda x: x.pos)
-        ide = sorted([entity for entity in self.entities if entity.tag and entity.text
-                      and re.search("INSIDE", entity.tag)], key = lambda x: x.pos)
         
-        for sys_entity, ide_entity in zip(sys, ide):
-            entity = "YTFS" + ide_entity.text + sys_entity.text
-            if sys_entity.text == "SY":
-                sys_entity.text = entity
-                special_ios.append(sys_entity)
-            elif len(ide_entity.text) == 3:
-                sys_entity.text = entity
-                sensors.append(sys_entity)
+        accessories = sorted([entity.parent for entity in self.entities if entity.tag and entity.text
+                      and re.search("INSIDE", entity.tag)], key = lambda x: x.sorting_pos)
+        for accessory in accessories:
+            if len(accessory.children['INSIDE'].text) > 3:
+                accessory.children['INSIDE'].text = accessory.sys + accessory.children['INSIDE'].text
+                accessory.children['INSSYS'].relevance = accessory.children['INSIDE']
+                actuators.append(accessory.children['INSSYS'])
+            elif accessory.children['INSSYS'].text[-2:] in self.special_postfix:
+                accessory.children['INSSYS'].text = accessory.sys + accessory.children['INSIDE'].text + accessory.children['INSSYS'].text
+                special_ios.append(accessory.children['INSSYS'])
             else:
-                ide_entity.text = 'YTFS' + ide_entity.text
-                sys_entity.relevance = ide_entity
-                ide_entity.accessories.append(sys_entity)
-                actuators.append(sys_entity)
-        scattered = [entity for entity in self.entities if entity.text and 
-                     re.search("YTFS[^\s][^-]+$", entity.text)]
+                accessory.children['INSSYS'].text = accessory.sys + accessory.children['INSIDE'].text + accessory.children['INSSYS'].text
+                sensors.append(accessory.children['INSSYS'])
+        scattered = []
+        for sys in self.systems:
+            scattered.extend([entity for entity in self.entities if entity.text and 
+                     re.search("[0-9]{3}[A-Za-z]{2,3}$", entity.text)])
         unmatched = []
-        
         for entity in scattered:
-            if entity.text.endswith("SY"):
+            if entity.text[-2:] in self.special_postfix:
                 special_ios.append(entity)
+                if len(entity.text) < 6:
+                    entity.text = entity.sys + entity.text
+                if len(entity.text) == 8:
+                    entity.text = 'X' + entity.text
             else:
-                unmatched.append(entity)
+                if entity.text[-2:] in self.actuators_postfix:
+                    unmatched.append(entity)
         unmatched_regions = self.get_target_regions(unmatched, 50, 50, 50, 50)
         arrows, varrows = self.get_arrows(unmatched_regions)
         arrow_regions = self.get_target_regions(arrows, 10, 10, 58, 58)
-        varrow_regions = self.get_target_regions(varrows, 10,10,10,10)
-        
-        for entity in self.entities:
-            if entity.type == "MTEXT":
-                if entity.color == 4:
+        # varrow_regions = self.get_target_regions(varrows, 10,10,10,10)
+        non_chinese = self.not_contain(r'[\u3400-\u9FFF]+') 
+        for entity in non_chinese:
+            if entity.type == "MTEXT" and len(entity.text) < 3 and entity.text in self.extension:
+                if entity.color == 4 or entity.text == "P" or entity.text == "C":
                     relevance = self.check_within(entity.pos, unmatched_regions, overload=True)
                     if relevance:
                         entity.associates.extend(relevance)
                         entity.relevance = entity.relevance_from_associates()
+                        
                         entity.relevance.accessories.append(entity)
                         actuators.append(entity)
                 elif entity.text.isalpha() and entity.height == 2:
@@ -201,15 +218,18 @@ class CADHandler:
                     if relevance:
                         entity.associates.extend(relevance)
                         entity.relevance = entity.relevance_from_associates().relevance
+                        if entity.relevance.text != entity.relevance.diagram_entity:
+                            entity.relevance.exception.add('replace', (entity.relevance.diagram_entity, entity.relevance.text) )
+                            entity.relevance.text = entity.relevance.diagram_entity
                         entity.relevance.accessories.append(entity)
                         actuators.append(entity)
                         continue
-                    relevance = self.check_within(entity.pos, varrow_regions,overload=True)
-                    if relevance:
-                        entity.associates.extend(relevance)
-                        entity.relevance = entity.relevance_from_associates().relevance
-                        entity.relevance.accessories.append(entity)
-                        actuators.append(entity)
+                    # relevance = self.check_within(entity.pos, varrow_regions,overload=True)
+                    # if relevance:
+                    #     entity.associates.extend(relevance)
+                    #     entity.relevance = entity.relevance_from_associates().relevance
+                    #     entity.relevance.accessories.append(entity)
+                    #     actuators.append(entity)
         special_ios = self.special_ios_duplicates_processing(special_ios)
         self.accessories["sensors"] = sensors
         self.accessories["special_ios"] = special_ios
@@ -237,14 +257,13 @@ class CADHandler:
         for entity in self.entities:
             match entity.type:
                 case "LWPOLYLINE":
-                    if 3.8<entity.length< 5:                                
+                    if 2.9<entity.length< 5:                                
                         relevance = self.check_within(entity.pos, regions)
                         if relevance is not None:
                             entity.relevance = relevance
                             relevance.accessories.append(entity)
                             varrows.append(entity)
-                case "HATCH":
-                    if 1.29< entity.area <1.3:
+                    if 1.2< entity.area <1.8:
                         relevance = self.check_within(entity.pos, regions)
                         if relevance is not None:
                             entity.relevance = relevance
@@ -278,24 +297,19 @@ class CADHandler:
         
         df.to_excel(filepath)
         
-    def accessories_to_df(self, sensors, special_ios, actuators):
+    def accessories_to_map(self, sensors, special_ios, actuators):
         #将识别出的sensors, special_ios, actuators导出到pandas dataframe以进行后续比对
-        sensors_dict = []
-        special_ios_dict = []
-        actuators_dict = []
+        sensors_dict, special_ios_dict, actuators_dict = {}, {}, {}
         for sensor in sensors:
-            sensors_dict.append(sensor.to_dict(self.bounds))
+            sensor.dict = sensor.to_dict(self.bounds)
+            sensors_dict[(sensor['信号位号idcode'][1:], sensor['图号diagram number'])] = sensor
         for special_io in special_ios:
-            special_ios_dict.append(special_io.to_dict(self.bounds))
+            special_io.dict = special_io.to_dict(self.bounds)
+            special_ios_dict[(special_io['信号位号idcode'][1:], special_io['图号diagram number'])] = special_io
         for actuator in actuators:
-            actuators_dict.append(actuator.to_dict(self.bounds))
-        df1 = pd.DataFrame.from_dict(sensors_dict)
-        df2 = pd.DataFrame.from_dict(special_ios_dict)
-        df3 = pd.DataFrame.from_dict(actuators_dict)
-        for df in (df1, df2, df3):
-            df.insert(0, "序号serial number", df.index+1)
-        return (df1, df2, df3)
-    
+            actuator.dict = actuator.to_dict(self.bounds)
+            actuators_dict[(actuator['信号位号idcode'][1:], actuator['扩展码extensioncode'], actuator['图号diagram number'])] = actuator
+        return (sensors_dict, special_ios_dict, actuators_dict)
     #need to be modifies to only take copiess
     def export_accessories_to_excel(self, sensors, special_ios, actuators, filepath):
         #将识别出的sensors, special_ios, actuators导出到excel文件
