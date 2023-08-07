@@ -6,6 +6,7 @@ from rich.traceback import install
 import sys
 import os
 from ezdxf.addons import odafc
+import time
 install()
 
 def main(graphfilepath, filepath):
@@ -13,8 +14,9 @@ def main(graphfilepath, filepath):
         graphfilepath = get_resource_path(graphfilepath)
     converted_path = graphfilepath.replace('.dwg', '.dxf')
     if not os.path.exists(converted_path):
-        converted_path = odafc.convert(graphfilepath, converted_path, version='R2010')
-    
+        odafc.convert(graphfilepath, converted_path, version='R2010')
+        while not os.path.exists(converted_path):
+            time.sleep(500)
     acad = CADHandler(converted_path)
     
     os.remove(converted_path)
@@ -34,5 +36,5 @@ def main(graphfilepath, filepath):
     return filepath
     
 if __name__ == "__main__":
-    print(sys.argv[1], '#######',sys.argv[2])
+    # print(sys.argv[1], '',sys.argv[2])
     main(sys.argv[1], sys.argv[2])

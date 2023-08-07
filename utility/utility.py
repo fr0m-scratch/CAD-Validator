@@ -248,8 +248,8 @@ def abbreviation_match(control, extract):
     
     if control['信号说明designation'].strip() == '':
         return False
-    if control['信号位号idcode'] == '3TFR301VL':
-        print(control['信号说明designation'], extract['信号说明designation'])
+    # if control['信号位号idcode'] == '3TFR301VL':
+    #     print(control['信号说明designation'], extract['信号说明designation'])
     control_designation = control['信号说明designation'].split('\n')
     if control['信号说明designation'] == '' and extract['信号说明designation'] != '无描述':
         return False
@@ -259,14 +259,14 @@ def abbreviation_match(control, extract):
         control_designation = [_ for _ in control['信号说明designation'].split('    ') if _ != '']
     c_chinese = ''.join([x for x in control_designation if re.search('[\u4e00-\u9fff]', x)])
     c_english = ''.join([x for x in control_designation if not re.search('[\u4e00-\u9fff]', x)])
-    if control['信号位号idcode'] == '3TFR301VL':
-            print(control_designation, c_chinese, c_english)
+    # if control['信号位号idcode'] == '3TFR301VL':
+    #         print(control_designation, c_chinese, c_english)
     for designation in extract.designation_list:
         designation.text = designation.text.replace('\\P', '')
     chinese = [x for x in extract.designation_list if (re.search('[\u4e00-\u9fff]', x.text) and (not re.search('控制柜', x.text)))]
     english = [x for x in extract.designation_list if not re.search('[\u4e00-\u9fff]', x.text)]
-    if control['信号位号idcode'] == '3TFR301VL':
-            print(control_designation, chinese, english)
+    # if control['信号位号idcode'] == '3TFR301VL':
+    #         print(control_designation, chinese, english)
     english_ratio = [(get_match_ratio(c_english, e_english.text, ['\n', ' ']), e_english) for e_english in english]
     chinese_ratio = [(get_match_ratio(c_chinese, e_chinese.text, ['\n', ' ']), e_chinese) for e_chinese in chinese]
     if chinese_ratio:

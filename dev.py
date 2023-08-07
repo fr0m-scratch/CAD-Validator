@@ -39,4 +39,4 @@ def main(graphfilepath, filepath):
 # main(r"C:\Users\intern\Desktop\cad-ocr\QC测试\3\TFL SAMA(1).dwg",r"C:\Users\intern\Desktop\cad-ocr\QC测试\3\H801202S-KK-3-TFL-01-QC-00001^#3机组低压给水加热器系统（TFL）DCS IO清单^A4^HL317TFL001E05045GN.xlsx")
 # main(r'C:\Users\intern\Desktop\cad-ocr\QC测试\2\TFP(1).dwg',r'C:\Users\intern\Desktop\cad-ocr\QC测试\2\H801202S-KK-3-TFP-01-QC-00001^#3机组电动主给水泵系统（TFP）DCS IO清单^A4^HL317TFP001E05045GN B版.xlsx' )
 main("TFS逻辑图.dwg", "control.xlsx")
-main(r"C:\Users\intern\Desktop\cad-ocr\t.dwg", r"C:\Users\intern\Desktop\cad-ocr\QC测试\1\H801202S-KK-3-TFR-01-QC-00001^#3机组给水加热器疏水回收系统（TFR）DCS IO清单^A4^HL317TFR001E05045GN.xlsx")
+# main(r"C:\Users\intern\Desktop\cad-ocr\t.dwg", r"C:\Users\intern\Desktop\cad-ocr\QC测试\1\H801202S-KK-3-TFR-01-QC-00001^#3机组给水加热器疏水回收系统（TFR）DCS IO清单^A4^HL317TFR001E05045GN.xlsx")
