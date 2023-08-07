@@ -7,7 +7,10 @@ from rich.progress import Progress
 import os
 import sys
 import ezdxf 
+import difflib
 import math
+def get_match_ratio(a, b, ignore_list):
+    return difflib.SequenceMatcher(lambda x: x in ignore_list, a, b).quick_ratio()
 def find_graph_id(coordinates, rectangles):
     #coordinates is a tuple of x and y
     #rectangles 是一个列表，每个元素是一个元组，元组的第一个元素是一个四元组，分别是左下角和右上角的坐标，第二个元素是图形的id
@@ -76,76 +79,93 @@ def unify(df):
     #统一dataframe中的数据顺序以进行比对
     df.sort_values(by=['信号位号idcode', '图号diagram number','扩展码extensioncode'], inplace=True, ignore_index=True)
     return df
-
-def read_diff(extracted, control, ref, extension = True, designation = True):
-    #比对两个dataframe，返回一个元组，元组的第一个元素是一个列表，每个元素是一个元组，元组的第一个元素是序号，第二个元素是列名
-    diff = []
-    diff_content = {}
-    labels = ['扩展码extensioncode','信号位号idcode', '图号diagram number', '版本rev.', '信号说明designation', "安全分级/分组Safetyclass/division"]
-    if not designation:
-        labels.remove('信号说明designation')
-    if not extension:
-        labels.remove('扩展码extensioncode')
-    for row in range(extracted.shape[0]):
-        for col in labels:
-            if col == '信号位号idcode':
-                diff_check = extracted.loc[row, col][1:] != control.loc[row, col][1:]
+def read_diff(control_dataframe,extract_dict, ref, extension, designation):
+        diff = []
+        diff_content = {}
+        for control in control_dataframe.iterrows():
+            control = control[1]
+            if not extension:
+                try:
+                    key = (control['信号位号idcode'][1:], control['图号diagram number'])
+                except:
+                    continue
             else:
-                diff_check = extracted.loc[row, col] != control.loc[row, col]
-            if diff_check:
-                if col == '信号说明designation':
-                    c_english = control.loc[row,col].split('\n')[-1].replace(' ', '') or "无描述"
-                    e_english = extracted.loc[row,col].split('\n')[-1].replace(' ', '') or "无描述"
-                    c = control.loc[row, col].replace('\n', '').replace(' ', '')
-                    e = extracted.loc[row, col].replace('\n', '').replace(' ', '')
-                    if c == e:
-                        continue
-            
-                    if abbreviation_match(e_english, c_english, 3):
-                        #可以修改模糊匹配的实体，选择输出不同或输出缩写比对
-                        continue
-                diff.append((control.loc[row,'序号serial number']+1, ref[col]))
-                if col not in diff_content:
-                    diff_content[col] = {}
-                diff_content[col][(control.loc[row,'序号serial number']+1)] = extracted.loc[row, col] or '无描述'
-    return diff, diff_content
+                try:
+                    key = (control['信号位号idcode'][1:], control['扩展码extensioncode'], control.loc['图号diagram number'])
+                except:
+                    continue
+            if key in extract_dict:
+                check_diff(control, extract_dict[key], ref,  diff, diff_content, extension, designation)
+                if extract_dict[key].relevance and extract_dict[key].relevance.exception:
+                    diff.append((ref['信号位号idcode'], control['refindex']))
+                    diff_content[('信号位号idcode', control['refindex'])] = extract_dict[key].relevance.exception.mismatch[extract_dict[key]['信号位号idcode']]
+            else:
+                diff.append(('all', control['refindex']))
+        return diff, diff_content
+    
+def check_diff(control, extract, ref,  diff, diff_content,extension=False, designation=True,):
+    labels = ['扩展码extensioncode','信号位号idcode', '图号diagram number', '版本rev.', '信号说明designation', "安全分级/分组Safetyclass/division"]
+    check = labels.copy()
+    if not designation:
+        check.remove('信号说明designation')
+    if not extension:
+        check.remove('扩展码extensioncode')
+    for col in check:
+        if col == '信号位号idcode':
+            diff_check = control[col][1:] != extract[col][1:]
+        else:
+            diff_check = control[col] != extract[col]
+        
+        if diff_check:
+            if col == '信号说明designation':
+                if abbreviation_match(control,extract):
+                    continue
+            col_name, col, row, content = col, ref[col], control['refindex'], extract[col]
+            diff.append((col, row))
+            diff_content[(col_name, row)] = content
+    return None
 
 def output_diff(filepath, ref, comparing_data):
-    #把比对结果写入excel表格
-    sensors, specials, actuators, sensors_control, specials_control, actuators_control = comparing_data
-    wb = openpyxl.load_workbook(filepath)
-    sensors_writer = wb['SENSOR_IO']
-    specials_writer = wb['SPECIAL_IO']
-    actuators_writer = wb['ACTUATOR_IO']
-    col_dict = {
-        "信号位号idcode": (1, "CAD信号位号"),
-        "扩展码extensioncode": (2, "CAD扩展码"),
-        "信号说明designation": (3, "CAD信号说明"),
-        "安全分级/分组Safetyclass/division": (4, "CAD安全分级/分组"),
-        "图号diagram number": (5, "CAD图号"),
-        "版本rev.": (6, "CAD版本"),
-    }
-    
-    def write_diff(writer, extracted, control, extension = True, designation = True ):
-        pos, content = read_diff(extracted, control, ref, extension, designation)
-        insert_col = writer.max_column + 3
-        writer.insert_cols(insert_col, 1)
-        for row, col in pos:
-            writer.cell(row, col).font = Font(color='FF0000')
-        for col in content.keys():
-            for row in content[col].keys():
-                writer.cell(row, insert_col+col_dict[col][0]).value = str(content[col][row])
-        for col in col_dict.values():
-            writer.cell(1, insert_col+col[0]).value = col[1]
-            writer.cell(1, insert_col+col[0]).font = Font(bold=True, size=10)
-            writer.cell(1, insert_col+col[0]).alignment = Alignment(horizontal='center', vertical='center')
-        for i in range(insert_col, insert_col+5):
-            writer.column_dimensions[openpyxl.utils.get_column_letter(i)].width = 15
-        return
-    write_diff(sensors_writer, sensors, sensors_control, extension = False)
-    write_diff(specials_writer, specials, specials_control, extension = False)
-    write_diff(actuators_writer, actuators, actuators_control)
-    wb.save(filepath)
+        #把比对结果写入excel表格
+        sensors, specials, actuators, sensors_control, specials_control, actuators_control = comparing_data
+        wb = openpyxl.load_workbook(filepath)
+        sensors_writer = wb['SENSOR_IO']
+        specials_writer = wb['SPECIAL_IO']
+        actuators_writer = wb['ACTUATOR_IO']
+        col_dict = {
+            "信号位号idcode": (1, "CAD信号位号"),
+            "扩展码extensioncode": (2, "CAD扩展码"),
+            "信号说明designation": (3, "CAD信号说明"),
+            "安全分级/分组Safetyclass/division": (4, "CAD安全分级/分组"),
+            "图号diagram number": (5, "CAD图号"),
+            "版本rev.": (6, "CAD版本"),
+        }
+        
+        def write_diff(writer, extracted, control, extension = True, designation = True ):
+            pos, content = read_diff(control, extracted, ref, extension, designation)
+            insert_col = writer.max_column + 3
+            writer.insert_cols(insert_col, 1)
+            for col, row in pos:
+                if col == 'all':
+                    for column in range(1, writer.max_column+1):
+                        writer.cell(row, column).font = Font(color='FF0000')
+                    writer.cell(row, insert_col+1).value = 'CAD图纸中不存在该信号位号'
+                    writer.cell(row, insert_col+1).font = Font(color='FF0000')
+                else:
+                    writer.cell(row, col).font = Font(color='FF0000')
+            for col_name, row in content.keys():
+                writer.cell(row, insert_col+col_dict[col_name][0]).value = str(content[(col_name, row)])
+            for col in col_dict.values():
+                writer.cell(1, insert_col+col[0]).value = col[1]
+                writer.cell(1, insert_col+col[0]).font = Font(bold=True, size=10)
+                writer.cell(1, insert_col+col[0]).alignment = Alignment(horizontal='center', vertical='center')
+            for i in range(insert_col, insert_col+5):
+                writer.column_dimensions[openpyxl.utils.get_column_letter(i)].width = 15
+            return
+        write_diff(sensors_writer, sensors, sensors_control, extension = False)
+        write_diff(specials_writer, specials, specials_control, extension = False)
+        write_diff(actuators_writer, actuators, actuators_control)
+        wb.save(filepath)
 
 def get_resource_path(relative_path):
     """解析编译后的数据文件路径"""
@@ -206,20 +226,8 @@ def mtext_to_string(s):
     """
     return unformat_mtext(s)
 
-# def abbreviation_match(abr, ori):
-#     if abr == '':
-#         return True
-#     if len(abr) > len(ori):
-#         return False
-#     if len(ori) == 1:
-#         return abr == ori
-#     else:
-#         if abr[0] == ori[0]:
-#             return abbreviation_match(abr[1:], ori[1:])
-#         else:
-#             return abbreviation_match(abr, ori[1:])
 
-def abbreviation_match(abr, ori, threshold = 1000):
+def abbrev_match(abr, ori, threshold = 1000):
     i,j, count = 0, 0, 0
     while i < len(abr) and j < len(ori):
         if abr[i] == ori[j]:
@@ -235,6 +243,55 @@ def abbreviation_match(abr, ori, threshold = 1000):
         return True
     elif j == len(ori):
         return False
+
+def abbreviation_match(control, extract):
+    
+    if control['信号说明designation'].strip() == '':
+        return False
+    if control['信号位号idcode'] == '3TFR301VL':
+        print(control['信号说明designation'], extract['信号说明designation'])
+    control_designation = control['信号说明designation'].split('\n')
+    if control['信号说明designation'] == '' and extract['信号说明designation'] != '无描述':
+        return False
+    if get_match_ratio(control['信号说明designation'], extract['信号说明designation'], ['\n', ' ']) > 0.8:
+        return True
+    if len(control_designation) == 1:
+        control_designation = [_ for _ in control['信号说明designation'].split('    ') if _ != '']
+    c_chinese = ''.join([x for x in control_designation if re.search('[\u4e00-\u9fff]', x)])
+    c_english = ''.join([x for x in control_designation if not re.search('[\u4e00-\u9fff]', x)])
+    if control['信号位号idcode'] == '3TFR301VL':
+            print(control_designation, c_chinese, c_english)
+    for designation in extract.designation_list:
+        designation.text = designation.text.replace('\\P', '')
+    chinese = [x for x in extract.designation_list if (re.search('[\u4e00-\u9fff]', x.text) and (not re.search('控制柜', x.text)))]
+    english = [x for x in extract.designation_list if not re.search('[\u4e00-\u9fff]', x.text)]
+    if control['信号位号idcode'] == '3TFR301VL':
+            print(control_designation, chinese, english)
+    english_ratio = [(get_match_ratio(c_english, e_english.text, ['\n', ' ']), e_english) for e_english in english]
+    chinese_ratio = [(get_match_ratio(c_chinese, e_chinese.text, ['\n', ' ']), e_chinese) for e_chinese in chinese]
+    if chinese_ratio:
+        # if control['信号位号idcode'] == '3TFP200SY':
+        #     print(chinese_ratio)
+        chinese = max(chinese_ratio, key=lambda x: x[0])
+    else:
+        chinese = (0, extract)
+    if english_ratio:
+        english = max(english_ratio, key=lambda x: x[0])
+    else:
+        english = (0, extract)
+    if chinese[0] > 0.8 or english[0] > 0.8:
+        return True
+    e_chinese, e_english = chinese[1], english[1]
+    
+        
+    chinese_check = (c_chinese and e_chinese.text) and ((abbrev_match(c_chinese, e_chinese.text) or abbrev_match(e_chinese.text, c_chinese)))
+    english_check = (c_english and e_english.text) and ((abbrev_match(c_english, e_english.text) or abbrev_match(e_english.text, c_english)))
+    if (chinese_check or english_check) and extract['信号说明designation'] != '无描述':
+        return True
+    return False
+    
+    
+    
     
 def get_arc_length_area(e):
     end_a = e.dxf.end_angle

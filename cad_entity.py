@@ -3,7 +3,7 @@ import ezdxf
 import math
 from ezdxf.entities import *
 from utility.utility import *
-from exception import Exception
+from utility.exception import Exception
 import copy
 class CADEntity:
     def __init__(self, entity, params):
@@ -30,6 +30,7 @@ class CADEntity:
         self.diagram_entity = None
         self.exception = Exception()
         self.dict = None
+        self.directs = []
         self.init_attribs()
         self.set_pos()
         
@@ -171,7 +172,7 @@ class CADEntity:
             except KeyError:
                 return None
     
-    def relevance_from_associates(self):
+    def relevance_from_associates(self, Text = False):
         """Find the most relevant(In terms of distance) associate from the associates list"""
         if len(self.associates) == 1:
             self.relevance = self.associates[0]
@@ -179,7 +180,7 @@ class CADEntity:
         elif len(self.associates) > 1:
             self.associates.sort(key=lambda x: self.get_distance(x))
             self.relevance = self.associates[0]
-            return self.associates[0]
+            return self.relevance
         
     def get_closest_designation(self):
         """Get the most relevant(In terms of distance) designation from the designation list"""
@@ -191,21 +192,24 @@ class CADEntity:
     
     def trim_designation(self):
         """Remove Irrelevant Designation and Sort the Designation by Distance"""
+        self.designation = [des for des in set(self.designation) if not re.search(self.sys, des.text)]
+        self.designation_list = self.designation
         for designation in self.designation:
             designation.text = designation.text.replace('\\P', '')
-        if len(self.designation) > 3:
-            self.designation.sort(key=lambda x: self.get_distance(x))
-            chinese = [x for x in self.designation if re.search('[\u4e00-\u9fff]', x.text)]
-            english = [x for x in self.designation if not re.search('[\u4e00-\u9fff]', x.text)]
+        chinese = [x for x in self.designation if re.search('[\u4e00-\u9fff]', x.text) and (not re.search('柜', x.text))]
+        english = [x for x in self.designation if not re.search('[\u4e00-\u9fff]', x.text)]
+        self.designation.sort(key=lambda x: self.get_distance(x))
+        if (len(self.designation) > 3 or 
+            (len(chinese) >1 and len(english) ==0)):
             self.designation = chinese[:1] + english[:1]
-        else:
-            self.designation.sort(key=lambda x: self.get_distance(x))
+        
         return self.designation
     
     def designation_to_string(self, bounds):
         """Convert Designation List to Output String"""
         if self.designation is None:
             return '-'
+
         des_list = self.trim_designation()
         id_code = (self.relevance and self.relevance.text) or self.text
         chinese_addition, english_addition = None, None

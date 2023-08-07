@@ -164,6 +164,7 @@ class CADHandler:
         self.bounds = v_bind
         return v_bind
     
+    
     def identify_accessories(self):
         #识别sensors, special_ios, actuators，这个函数的逻辑比较复杂，可以进一步refactor
         sensors = []
@@ -173,6 +174,7 @@ class CADHandler:
         accessories = sorted([entity.parent for entity in self.entities if entity.tag and entity.text
                       and re.search("INSIDE", entity.tag)], key = lambda x: x.sorting_pos)
         for accessory in accessories:
+            accessory.sys = accessory.sys or ''
             if len(accessory.children['INSIDE'].text) > 3:
                 accessory.children['INSIDE'].text = accessory.sys + accessory.children['INSIDE'].text
                 accessory.children['INSSYS'].relevance = accessory.children['INSIDE']
@@ -204,7 +206,7 @@ class CADHandler:
         # varrow_regions = self.get_target_regions(varrows, 10,10,10,10)
         non_chinese = self.not_contain(r'[\u3400-\u9FFF]+') 
         for entity in non_chinese:
-            if entity.type == "MTEXT" and len(entity.text) < 3 and entity.text in self.extension:
+            if entity.type == "MTEXT" and entity.text and len(entity.text) < 3 and entity.text in self.extension:
                 if entity.color == 4 or entity.text == "P" or entity.text == "C":
                     relevance = self.check_within(entity.pos, unmatched_regions, overload=True)
                     if relevance:
@@ -219,7 +221,7 @@ class CADHandler:
                         entity.associates.extend(relevance)
                         entity.relevance = entity.relevance_from_associates().relevance
                         if entity.relevance.text != entity.relevance.diagram_entity:
-                            entity.relevance.exception.add('replace', (entity.relevance.diagram_entity, entity.relevance.text) )
+                            entity.relevance.exception.add('信号位号idcode', (entity.relevance.diagram_entity, entity.relevance.text) )
                             entity.relevance.text = entity.relevance.diagram_entity
                         entity.relevance.accessories.append(entity)
                         actuators.append(entity)
@@ -379,21 +381,24 @@ class CADHandler:
         accessories = []
         for items in self.accessories.values():
             accessories.extend(items)
-        regions = self.get_target_regions(accessories, 5.97,70,70,70)
+        regions = self.get_target_regions(accessories, 18, 18,77,77)
         chinese = self.contain(r'[\u3400-\u9FFF]+')
         chinese_illustration = []
         for chi in chinese:
             relevance = self.check_within(chi.pos, regions, overload=True)
-            if relevance is not None and chi.type == "MTEXT":
+            if relevance is not None and (chi.type == "MTEXT" or chi.type == "TEXT") and (not chi in self.bounds):
                 chi.associates.extend(relevance)
-                chi.relevance = chi.relevance_from_associates()
+                chi.relevance = chi.relevance_from_associates(True)
                 chinese_illustration.append(chi)
         for chiilu in chinese_illustration:
             #can be modified to take a regex pattern as paramter
             if "过程" in chiilu.text:
                 chinese_illustration.remove(chiilu)
                 continue
-            chiilu.relevance.designation.append(chiilu)
+            for _ in chiilu.associates:
+                _.designation.append(chiilu)
+            # chiilu.relevance.designation.append(chiilu)
+            
         relevant_chinese_illustration = []
         for acco in accessories:
             if acco.designation:
@@ -402,23 +407,37 @@ class CADHandler:
         illu_regions = self.get_target_regions(relevant_chinese_illustration, 0,20,10,10)
         non_chinese = self.not_contain(r'[\u3400-\u9FFF]+')
         english_illustration = []
+        directs = []
         for entity in non_chinese:
-            if entity.type == "MTEXT":
+            if entity.type == "MTEXT" and (not entity in self.bounds):
                 relevance = self.check_within(entity.pos, illu_regions,overload=True)
                 if relevance is not None:
                     entity.associates.extend(relevance)
                     english_illustration.append(entity)
-        for engilu in english_illustration:
+                direct = self.check_within(entity.pos, regions, overload=True)
+                if direct is not None:
+                    entity.directs.extend(direct)
+                    directs.append(entity)
+        for engilu in directs:
+            for _ in engilu.directs:
+                if _.handle != engilu.handle:
+                    _.designation.append(engilu)
+        for engilu in set(english_illustration):
+            engilu.text = engilu.text.replace('\n', '')   
             if engilu.associates:
                 for asso in engilu.associates:
                     if asso.handle == engilu.handle:
                         engilu.associates.remove(asso)
-                engilu.relevance = engilu.relevance_from_associates()
+                engilu.relevance = engilu.relevance_from_associates(True)
                 if engilu.relevance.relevance == engilu:
                     engilu.relevance = None
                     continue
                 engilu.relevance.relevance.designation.append(engilu)
+                for _ in engilu.relevance.associates:
+                    if engilu.handle != _.handle:
+                        _.designation.append(engilu)
         illustration = list(relevant_chinese_illustration) + english_illustration
+        
         return illustration
         
     def trim_designation(self):
