@@ -80,6 +80,7 @@ def unify(df):
     df.sort_values(by=['信号位号idcode', '图号diagram number','扩展码extensioncode'], inplace=True, ignore_index=True)
     return df
 def read_diff(control_dataframe,extract_dict, ref, extension, designation):
+        #遍历实体列表的每个实体，比对实体的每个属性，如果不同则记录下来
         diff = []
         diff_content = {}
         for control in control_dataframe.iterrows():
@@ -104,6 +105,7 @@ def read_diff(control_dataframe,extract_dict, ref, extension, designation):
         return diff, diff_content
     
 def check_diff(control, extract, ref,  diff, diff_content,extension=False, designation=True,):
+    #遍历实体列表的每个实体，比对实体的每个属性，如果不同则记录下来
     labels = ['扩展码extensioncode','信号位号idcode', '图号diagram number', '版本rev.', '信号说明designation', "安全分级/分组Safetyclass/division"]
     check = labels.copy()
     if not designation:
@@ -118,11 +120,13 @@ def check_diff(control, extract, ref,  diff, diff_content,extension=False, desig
         
         if diff_check:
             if col == '信号说明designation':
+                #特殊的如果是信号说明，需要进行模糊匹配
                 if abbreviation_match(control,extract):
                     continue
             col_name, col, row, content = col, ref[col], control['refindex'], extract[col]
             diff.append((col, row))
             diff_content[(col_name, row)] = content
+            #返回值是None因为记录的不同被添加回了传参进来的列表和字典中，不需要返回值
     return None
 
 def output_diff(filepath, ref, comparing_data):
@@ -202,6 +206,7 @@ def not_contain(words, entities):
         return set(res)
     
 def unformat_mtext(s, exclude_list=('n', 'S')):
+    #去除MTXT格式
     """Returns string with removed format information
     :param s: string with multitext
     :param exclude_list: don't touch tags from this list. Default ('P', 'S') for
@@ -228,6 +233,7 @@ def mtext_to_string(s):
 
 
 def abbrev_match(abr, ori, threshold = 1000):
+    #模糊匹配， threshold是最大允许的不匹配字符数
     i,j, count = 0, 0, 0
     while i < len(abr) and j < len(ori):
         if abr[i] == ori[j]:
@@ -245,7 +251,7 @@ def abbrev_match(abr, ori, threshold = 1000):
         return False
 
 def abbreviation_match(control, extract):
-    
+    #模糊匹配， 根据ratio判断是否匹配
     if control['信号说明designation'].strip() == '':
         return False
     # if control['信号位号idcode'] == '3TFR301VL':
@@ -306,7 +312,7 @@ def get_arc_length_area(e):
     arc_delta=ezdxf.math.area([e.start_point,e.end_point,e.dxf.center])
     cad_area=area - (arc_delta if end_a-start_a<180 else -1*arc_delta)
     #圆弧中点坐标
-    x= e.dxf.center[0]+r*math.cos(math.radians(a/2+start_a));
-    y= e.dxf.center[1]+r*math.sin(math.radians(a/2+start_a));
+    x= e.dxf.center[0]+r*math.cos(math.radians(a/2+start_a))
+    y= e.dxf.center[1]+r*math.sin(math.radians(a/2+start_a))
     arc_mid=x,y
     return l,area,cad_area,arc_mid

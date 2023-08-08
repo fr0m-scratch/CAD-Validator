@@ -29,6 +29,7 @@ class CADEntity:
         #一些特殊的CAD图包含单一实体的信号，这些信号的信号位号是一样的，所以需要一个变量来记录
         self.diagram_entity = None
         self.exception = Exception()
+        #CAD图中的信息这个dict的key与IO清单的信息条目一一对应，如信号位号，信号说明等
         self.dict = None
         self.directs = []
         self.init_attribs()
@@ -38,6 +39,7 @@ class CADEntity:
         return self.dict[key]
     
     def set_pos(self):
+        #对于不同的dxf实体种类，计算中心点用于后续的位置逻辑判断
         match self.type:
             case "TEXT":
                 self.pos = self.align_point or self.insert
@@ -94,6 +96,7 @@ class CADEntity:
     
              
     def attachment_to_center(self):
+        #MTEXT的可能是九个点的任意一点，所以需要计算中心点
         """MText.dxf.attachment_point	Value
             MTEXT_TOP_LEFT	1
             MTEXT_TOP_CENTER	2
@@ -125,27 +128,9 @@ class CADEntity:
                 return (self.insert[0] - self.width/2, self.insert[1] + self.height/2)
 
                 
-            
-    def align_to_center(self):
-        """dxf.valign
-        Vertical alignment flag as int value, use the set_placement() and get_align_enum() methods to handle text alignment, the default value is 0.
-
-        0	Baseline
-        1	Bottom
-        2	Middle
-        3	Top"""
-        """dxf.halign
-        Horizontal alignment flag as int value, use the set_placement() and get_align_enum() methods to handle text alignment, the default value is 0.
-
-        0	Left
-        2	Right
-        3	Aligned (if vertical alignment = 0)
-        4	Middle (if vertical alignment = 0)
-        5	Fit (if vertical alignment = 0)"""
-        return
-        
     
     def init_attribs(self):
+        #初始化CAD图中的信息
         try:
             self.height = self.params['char_height']
         except KeyError:
@@ -173,6 +158,7 @@ class CADEntity:
                 return None
     
     def relevance_from_associates(self, Text = False):
+        #在实体的关联实体列表里找到最相关的实体
         """Find the most relevant(In terms of distance) associate from the associates list"""
         if len(self.associates) == 1:
             self.relevance = self.associates[0]
@@ -183,6 +169,7 @@ class CADEntity:
             return self.relevance
         
     def get_closest_designation(self):
+        #在信号说明列表里找到最相关的信号说明
         """Get the most relevant(In terms of distance) designation from the designation list"""
         if len(self.designation) > 1:
             self.designation.sort(key=lambda x: self.get_distance(x))
@@ -191,6 +178,7 @@ class CADEntity:
             return self.designation[0]
     
     def trim_designation(self):
+        #去除无关的信号说明并重置信号说明格式
         """Remove Irrelevant Designation and Sort the Designation by Distance"""
         self.designation = [des for des in set(self.designation) if not re.search(self.sys, des.text)]
         self.designation_list = self.designation
@@ -206,6 +194,7 @@ class CADEntity:
         return self.designation
     
     def designation_to_string(self, bounds):
+        #将信号说明列表转换可读可校对的无格式字符串
         """Convert Designation List to Output String"""
         if self.designation is None:
             return '-'
@@ -231,6 +220,7 @@ class CADEntity:
         return ((chinese or english) and chinese +'\n' + english) or ''
         
     def to_dict(self, bounds):
+        #根据CAD实体信息，生成一个信息字典，用于与IO清单条目对比
         """Convert Entity to Dictionary Entry for Dataframe Output"""
         return {'信号位号idcode': (self.relevance and self.relevance.text) or self.text, 
                 '扩展码extensioncode': (self.relevance and self.text) or '无扩展码',

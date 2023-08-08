@@ -1,0 +1,69 @@
+@startuml convert
+title CAD校对软件流程图
+
+skinparam monochrome true
+skinparam shadowing false
+skinparam arrowThickness 1.5
+skinparam arrowDirection -left-
+skinparam padding 20
+
+|CAD预处理|
+start
+partition "预处理" {
+   
+    :输入CAD图 (dwg);
+    -[#red]->使用ODA开源处理器模块;
+    :转换成dxf(可读二进制);
+    split
+        :遍历dxf实体;
+    split again
+        :根据实体信息生成CADEntity对象;
+    split again
+        :并存入CADHandler类的实体列表;
+    end split
+    :删除生成的dxf文件;
+    
+}
+
+|CAD处理器|
+
+partition "CADHandler信息读取" {
+    :识别表头信息;
+    split
+        :图号;
+    split again
+        :安全分组/版本号;
+    split again
+        :图表实体位号;
+    end split
+    split
+        :识别SENSORS;
+    split again
+        :识别SPECIAL_IOS;
+    split again
+        :识别ACTUATORS;
+    end split
+    :根据实体信息生成元组关键词;
+}
+
+|Pandas|
+
+partition "IO清单处理" {
+    :输入IO清单(excel);
+    split
+        :读取IO清单信息至Pandas 数据框;
+    split again        
+        :根据元组关键词匹配IO清单条目\n     和CAD图表实体进行校对;
+    end split        
+}
+
+
+|Excel Writer|
+partition "输出处理" {
+    :将校对不同的实体信息存入二层map;
+    :复制 IO清单到指定输出位置指定输出文件名;
+    :在输出文件中标红差异\n并写入CAD图表对应差异信息;
+}
+
+stop
+@enduml

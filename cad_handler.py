@@ -6,7 +6,6 @@ import pickle
 from rich.progress import Progress
 import re
 import pandas as pd
-from utility.accessories import accessories
 from numba import jit
 import ezdxf
 from ezdxf.entities import *
@@ -15,8 +14,10 @@ from ezdxf.addons import odafc
 class CADHandler:
     def __init__(self, filepath):
         self.doc = ezdxf.readfile(filepath)
+        #实体列表，里面村的是CADEntity
         self.entities = []
         self.systems = []
+        #用来进行比对的关键词，可以根据数据内容进行添加来优化比对效果
         self.extension = {'OD', 'CO', 'P', 'C', 'CP', 'FP', 'CD', 'RC', 'OP'}
         self.special_postfix = {'SY', 'MC', 'MY'}
         self.actuators_postfix = {'VV', 'VL'}
@@ -85,6 +86,7 @@ class CADHandler:
                     break
                 
     def generate_graph_rectangles(self, anchors, width, height, w_correction, h_correction, true_point = False):
+        #根据图号实体，生成一个元组列表， 每个元组[0]是该图号实体的的矩形区域，元组[1]是该图号实体本身
         if true_point:
             #write a for loop try except to identify the error
             rectangles = [((r1.insert[0]-width+w_correction, r1.insert[0]+w_correction, r1.insert[1]+h_correction, r1.insert[1]+height+h_correction), r1) for r1 in anchors]
@@ -93,6 +95,7 @@ class CADHandler:
         return rectangles
     
     def generate_diagram_numbers(self, rectangles, tags):
+        #根据图号信息实体以及前缀生成图号
         regions_with_diagrams = []
         for tag in tags:
             coordinates, tag = tag
@@ -147,6 +150,7 @@ class CADHandler:
         return divs, revs, safes, ents, syss
     
     def bind_designation_to_idcode(self):
+        #将识别出的图标实体信号位号绑定该图表的每一个实体
         v_bind = {}
         for _ in self.bounds.values():
             for bound in _:
